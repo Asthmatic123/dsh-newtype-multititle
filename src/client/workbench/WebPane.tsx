@@ -4,7 +4,7 @@
  * 已知限制：目标站 X-Frame-Options/CSP 拒绝 iframe 时显示空白（任何 iframe 方案同限；
  * dsh-sidebar-browser 的反代是例外，但它被右栏闸锁死）。
  */
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import s from '../newtype.module.css'
 
 const normalize = (raw: string): string => {
@@ -16,6 +16,8 @@ const normalize = (raw: string): string => {
 
 export function WebPane(props: { url?: string; setParams: (patch: Record<string, unknown>) => void }) {
   const [draft, setDraft] = useState(props.url ?? '')
+  // E35：对话点链接 / 齿轮按钮从外部带 url 打开时，URL 栏跟着显示新地址
+  useEffect(() => { setDraft(props.url ?? '') }, [props.url])
   const go = (raw: string) => {
     const u = normalize(raw)
     if (u) props.setParams({ url: u })

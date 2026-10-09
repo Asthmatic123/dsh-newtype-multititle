@@ -2,7 +2,7 @@
 
 **DSH 自由工作台插件** —— 把 DeepSeek Harness 的对话区变成一个 tab 化、可自由分栏的多会话工作台。每个窗格都是**宿主原版对话框**（markdown / 工具卡 / 输入框 / 模型选择全在），不是自绘投影。
 
-![status](https://img.shields.io/badge/status-%E5%88%9D%E7%89%88%20v0.0.1-blue) ![dsh](https://img.shields.io/badge/dsh-0.1.7~0.2.0--rc.2-green) ![license](https://img.shields.io/badge/license-MIT-lightgrey)
+![status](https://img.shields.io/badge/status-v0.1.0-blue) ![dsh](https://img.shields.io/badge/dsh-0.1.7~0.2.0--rc.2-green) ![license](https://img.shields.io/badge/license-MIT-lightgrey)
 
 ![自由工作台：多会话并行 · 自由分栏 · 每窗格宿主原版对话框](docs/shots/hero.webp)
 
@@ -19,10 +19,14 @@
 ## 安装
 
 ```sh
-# 本地路径安装（推荐，web profile 同理加 --profile web）
+# 方式一：Release 下载 tgz 直装（免构建，推荐）
+#   从 https://github.com/Asthmatic123/dsh-newtype-multititle/releases 下载 .tgz
+dsh plugin --profile desktop add <下载的>.tgz
+
+# 方式二：本地路径安装（web profile 同理加 --profile web）
 dsh plugin --profile desktop add <本仓库克隆路径>
 
-# 或从源码构建后安装
+# 方式三：从源码构建后安装
 git clone https://github.com/Asthmatic123/dsh-newtype-multititle.git
 cd dsh-newtype-multititle && npm install && npm run build
 dsh plugin --profile desktop add .

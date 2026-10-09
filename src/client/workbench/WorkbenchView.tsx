@@ -235,6 +235,11 @@ export function WorkbenchView(props: WorkbenchProps) {
   const byIdRef = useRef(byId)
   byIdRef.current = byId
 
+  /** E35：对话内链接 → 内置浏览器新 tab（wsRef 是 ref，回调身份恒定，memo 不破） */
+  const openInBrowser = useCallback((url: string) => {
+    try { wsRef.current?.open('web', { params: { url }, reuse: false }) } catch { /* 未就绪 */ }
+  }, [])
+
   /** view 内容：mode 切换（对话/轨迹，齿轮 setParams；params 随 trellis 布局持久化） */
   const renderSession = useCallback((view: {
     params?: { sid?: string; mode?: string }
@@ -264,6 +269,7 @@ export function WorkbenchView(props: WorkbenchProps) {
         SessionProvider={props.SessionProvider}
         renderFactorySlot={props.renderFactorySlot}
         fallback={<SessionPane sessionId={sid} retainSession={retain} />}
+        onOpenLink={openInBrowser}
       />
     )
   }, [props.retainSession, props.SessionProvider, props.renderFactorySlot])

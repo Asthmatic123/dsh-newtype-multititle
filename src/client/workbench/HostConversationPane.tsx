@@ -40,6 +40,8 @@ export interface HostConversationPaneProps {
    * trajectory 在嵌入形态能否渲染 = 落地查证项（失败时齿轮里隐藏轨迹行即可）。
    */
   viewName?: string
+  /** E35：对话内点 http(s) 链接 → 转交工作台内置浏览器（web 视图）；不传则走宿主默认 */
+  onOpenLink?: (url: string) => void
 }
 
 /**
@@ -61,6 +63,19 @@ type RetainState =
 const loadingFor = (id: string): RetainState => ({ phase: 'loading', for: id })
 
 export const HostConversationPane = memo(function HostConversationPane(props: HostConversationPaneProps) {  const { sessionId, retainSession, SessionProvider, renderFactorySlot, viewName, blank } = props
+  /** E35：捕获层拦对话内链接点击。Ctrl/Cmd 点按放行（尊重「外部打开」习惯）；
+   *  非 http(s)（mailto:、锚点、相对路径）不拦。 */
+  const onCaptureClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const open = props.onOpenLink
+    if (!open || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button !== 0) return
+    const a = (e.target as HTMLElement | null)?.closest?.('a')
+    if (!a) return
+    const href = a.getAttribute('href') ?? ''
+    if (!/^https?:\/\//i.test(href)) return
+    e.preventDefault()
+    e.stopPropagation()
+    open(href)
+  }
   const [state, setState] = useState<RetainState>(() => loadingFor(sessionId))
   /** E34：空会话 hero 比窗格高时，factory 初始滚动停在底部（hero 顶被裁、观感「输入框贴顶」）。
    *  会话就绪后把滚动归零几帧，呈现原生同款「hero 顶部 + composer 固定底」。 */
@@ -162,7 +177,7 @@ export const HostConversationPane = memo(function HostConversationPane(props: Ho
  */
 return (
     <SessionProvider key={settled.for} session={settled.ref}>
-      <div className={s.hconvRoot + (props.blank ? ' ' + s.hconvBlank : '')} data-nt="hconv" ref={rootRef}>
+      <div className={s.hconvRoot + (props.blank ? ' ' + s.hconvBlank : '')} data-nt="hconv" ref={rootRef} onClickCapture={onCaptureClick}>
         {renderFactorySlot(
           'conversation.content',
           { variant: 'embedded', phase: 'active', hero: false },
@@ -182,6 +197,7 @@ function panePropsEqual(a: HostConversationPaneProps, b: HostConversationPanePro
     && a.SessionProvider === b.SessionProvider
     && a.renderFactorySlot === b.renderFactorySlot
     && a.viewName === b.viewName
+    && a.onOpenLink === b.onOpenLink
 }
 
 /**

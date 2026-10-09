@@ -219,33 +219,24 @@ export function apply(ctx: Context): void {
     } catch { /* 实例不可写：放弃 patch，保持原版行为 */ }
   }, 600)
 
-  // —— E31b：工作台态下点左栏会话行 = 开进工作台 tab（不再被宿主踹回原生对话）——
-  // 宿主 WorkspaceBrowser 行点击调 uiWorkspace.openSession → 切到原生对话面板。
-  // 工作台是当前面板时改为往工作台开 session tab；对话态照走原版（不劫持）。
-  // E33 补：「新会话」按钮走 startSession（另一条路），同样劫持——调原版后轮询
-  // 会话列表找新增的 sid，拉回工作台开 tab（主人实测：关全部 tab 再新开会话会回退原生态）。
-  const inWorkbench = (): boolean => {
-    try {
-      return (ctx.layout?.panelInfo as { getSnapshot?: () => { activePanelId?: string | null } } | undefined)
-        ?.getSnapshot?.()?.activePanelId === 'newtype'
-    } catch { return false }
-  }
+  // —— E31b：点左栏会话行 = 开进工作台 tab。——
+  // E38（2026-10-10，主人裁定）：不再看当前面板——只要插件活着，一律开进自由栏位。
+  // 原版 openSession 彻底不调（原生对话面板只能手动点侧栏「对话」行进）。
+  // 顺序：先 emit（总线 pending 兜底，未挂载不丢），再 selectPanel；
+  // WorkbenchView 挂载后 sub 立刻补消费 pending（bus.ts 设计如此）。
   const wbOpenPatch = () => {
     const ws = ctx.uiWorkspace
     if (!ws) return false
     const g = ws as { openSession?: unknown; startSession?: unknown; __ntOrig?: unknown }
     if (g.__ntOrig) return true
-    const orig = (ws.openSession as (t: string) => void).bind(ws)
     try {
       ;(ws as { openSession: unknown }).openSession = (target: string) => {
-        if (inWorkbench()) { openTabBus.emit(String(target)); return }
-        orig(target)
+        openTabBus.emit(String(target))
+        try { ctx.layout?.selectPanel('newtype' as never) } catch { /* 布局缺席 */ }
       }
       const origStart = (ws.startSession as ((w?: string, b?: unknown) => Promise<void> | void) | undefined)?.bind(ws)
 if (origStart) {
         ;(ws as { startSession: unknown }).startSession = (workspaceId?: string, beforeOpen?: unknown) => {
-          const wb = inWorkbench()
-          if (!wb) return origStart(workspaceId, beforeOpen)
           const r = origStart(workspaceId, beforeOpen)
           // 0.2.0「新会话」复用空会话（E27），等不到新 id → 改等 replaceMain 留下的
           // mainView 保留会话（它必然发生），拿到后拉回工作台开 tab
@@ -263,7 +254,7 @@ if (origStart) {
           return r
         }
       }
-      g.__ntOrig = orig
+      g.__ntOrig = true
       return true
     } catch { return false }
   }
