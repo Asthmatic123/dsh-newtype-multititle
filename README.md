@@ -2,7 +2,7 @@
 
 **DSH 自由工作台插件** —— 把 DeepSeek Harness 的对话区变成一个 tab 化、可自由分栏的多会话工作台。每个窗格都是**宿主原版对话框**（markdown / 工具卡 / 输入框 / 模型选择全在），不是自绘投影。
 
-![status](https://img.shields.io/badge/status-v0.1.0-blue) ![dsh](https://img.shields.io/badge/dsh-0.1.7~0.2.0--rc.2-green) ![license](https://img.shields.io/badge/license-MIT-lightgrey)
+![status](https://img.shields.io/badge/status-v0.1.1-blue) ![dsh](https://img.shields.io/badge/dsh-0.1.7~0.2.0--rc.2-green) ![license](https://img.shields.io/badge/license-MIT-lightgrey)
 
 ![自由工作台：多会话并行 · 自由分栏 · 每窗格宿主原版对话框](docs/shots/hero.webp)
 
@@ -12,8 +12,8 @@
 - **多会话并行**：每个窗格独立 retain 一份会话引用，窗格内是宿主 `conversation.content` factory 渲染的**原版对话框**。
 - **对话 / 轨迹切换**：tab 齿轮菜单切换标准对话与轨迹视图，模式随布局持久化。
 - **产出物右栏**：常驻挂载、按会话归档的产出物流，点击直达工作台窗格。
-- **内置浏览器**：工作台内开 iframe 浏览器 tab，不依赖宿主右栏。
-- **文件窗格**：点对话内文件 → 只读文件窗格（宿主 `openResource` 的工作台态兜底）。
+- **内置浏览器**：工作台内开浏览器 tab，不依赖宿主右栏。桌面版走 Electron webview（官方 dshDesktop 桥），不受 X-Frame-Options 限制，大站不白屏；web 版回落 iframe + 外部打开兜底。
+- **文件窗格**：点对话内文件 → 只读文件窗格；md 自动排版渲染（marked）+ mermaid 图表，颜色跟随主题。
 - **启动对齐**：重启后自动恢复 session tab，会话服务未就绪时退避重试（500ms × 12），不弹「无法读取对话」。
 
 ## 安装

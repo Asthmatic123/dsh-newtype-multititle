@@ -1,6 +1,6 @@
 {
   "name": "@dsh-external/dsh-newtype-multititle",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "NewType 工作台：tab 化会话列表 + 自由分栏（trellis 式，Ely 视觉口径）。DSH client-plugin。",
   "type": "module",
@@ -55,5 +55,8 @@
     "tsdown": "^0.22.2",
     "typescript": "^5.9.3"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "marked": "^18.1.0"
+  }
 }

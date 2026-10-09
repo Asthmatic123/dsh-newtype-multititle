@@ -249,6 +249,15 @@ export function WorkbenchView(props: WorkbenchProps) {
     const mode = view.params?.mode === 'trace' ? 'trace' : 'chat'
     const retain = props.retainSession
     if (!retain) return <div className={s.pempty}>会话服务未就绪</div>
+    // E41：文件点击 → 文件窗格。相对路径（@file chip 的 title）按会话 cwd 拼绝对。
+    const openInFilePane = (raw: string) => {
+      let p = raw.replace(/^@/, '').replace(/^"|"$/g, '')
+      if (!/^[A-Za-z]:[\\/]/.test(p) && !p.startsWith('/')) {
+        const cwd = (byIdRef.current[sid] as { cwd?: string } | undefined)?.cwd
+        if (cwd) p = `${cwd.replace(/[\\/]+$/, '')}/${p.replace(/^\/+/, '')}`
+      }
+      try { wsRef.current?.open('file', { params: { path: p }, reuse: false }) } catch { /* 未就绪 */ }
+    }
     if (mode === 'trace') {
       return (
         <HostConversationPane
@@ -270,6 +279,7 @@ export function WorkbenchView(props: WorkbenchProps) {
         renderFactorySlot={props.renderFactorySlot}
         fallback={<SessionPane sessionId={sid} retainSession={retain} />}
         onOpenLink={openInBrowser}
+        onOpenFile={openInFilePane}
       />
     )
   }, [props.retainSession, props.SessionProvider, props.renderFactorySlot])
@@ -328,14 +338,14 @@ export function WorkbenchView(props: WorkbenchProps) {
             }}
             render={(v: any) => <FilePane path={v?.params?.path ?? ''} />}
           />
-          {/* E32：内置浏览器（自绘 URL 栏 + iframe，不依赖宿主右栏） */}
+          {/* E32：内置浏览器（E40 双引擎：Desktop webview / Web iframe，不依赖宿主右栏） */}
           <ViewType
             id="web"
             title={(v: { params?: { url?: string } }) => {
               const u = v.params?.url ?? ''
               return u ? (u.replace(/^https?:\/\//, '').split('/')[0] || '浏览器') : '浏览器'
             }}
-            render={(v: any) => <WebPane url={v?.params?.url ?? ''} setParams={(patch) => v?.setParams?.(patch)} />}
+            render={(v: any) => <WebPane url={v?.params?.url ?? ''} setParams={(patch) => v?.setParams?.(patch)} openWebTab={openInBrowser} />}
           />
           <Stage empty={
             <div className={s.pempty}>

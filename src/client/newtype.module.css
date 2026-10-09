@@ -150,7 +150,7 @@
 :global(.nt-catname){font-size:10px;color:var(--dsh-faint,#6a6e78);padding:5px 10px 2px}
 
 /* ============ E32 内置浏览器 ============ */
-.webPane{display:flex;flex-direction:column;width:100%;height:100%;min-height:0;overflow:hidden}
+.webPane{display:flex;flex-direction:column;width:100%;height:100%;min-height:0;overflow:hidden;position:relative}
 .webBar{display:flex;gap:6px;align-items:center;padding:6px 8px;flex:none;border-bottom:1px solid var(--dsh-line,#262422);background:var(--trellis-tabbar,#141518)}
 .webUrl{flex:1;min-width:0;height:26px;padding:0 10px;border-radius:6px;border:1px solid var(--dsh-line,#262422);background:var(--trellis-stage,#111215);color:var(--dsh-text,#d8d5d0);font-size:12px;outline:none}
 .webUrl:focus{border-color:var(--trellis-accent,#4d8bff)}

@@ -42,6 +42,12 @@ export interface HostConversationPaneProps {
   viewName?: string
   /** E35：对话内点 http(s) 链接 → 转交工作台内置浏览器（web 视图）；不传则走宿主默认 */
   onOpenLink?: (url: string) => void
+  /**
+   * E41：对话内点文件（交付物卡 / md 文件提及 / @file 引用 chip）→ 工作台文件窗格。
+   * 官方 openFile 在 embedded 形态下撞 cordis 死 fiber（「cannot get required
+   * service "sessions" in inactive context」，05 §E41），捕获层绕开整条官方链路。
+   */
+  onOpenFile?: (path: string) => void
 }
 
 /**
@@ -64,11 +70,34 @@ const loadingFor = (id: string): RetainState => ({ phase: 'loading', for: id })
 
 export const HostConversationPane = memo(function HostConversationPane(props: HostConversationPaneProps) {  const { sessionId, retainSession, SessionProvider, renderFactorySlot, viewName, blank } = props
   /** E35：捕获层拦对话内链接点击。Ctrl/Cmd 点按放行（尊重「外部打开」习惯）；
-   *  非 http(s)（mailto:、锚点、相对路径）不拦。 */
+   *  非 http(s)（mailto:、锚点、相对路径）不拦。
+   *  E41：同层拦文件类点击（交付物卡 / md 文件提及 / @file 引用 chip），
+   *  路径从 DOM title 直读，preventDefault 绕开官方 openFile 的死 fiber。
+   *  特征依据 05 §E41（0.2.0-rc.2 源码只读查证）：
+   *   - 交付物卡 div[data-presented-file]，热区 button[title] title=绝对路径
+   *   - md 提及 button.fileMention（css module hash，后缀 _fileMention 稳定），title=path
+   *   - @file chip button[data-ref-chip="file"]，title=@path（去 @ 去引号，相对 cwd） */
   const onCaptureClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button !== 0) return
+    const t = e.target as HTMLElement | null
+    const openFile = props.onOpenFile
+    if (openFile && t) {
+      const card = t.closest?.('[data-presented-file]')
+      if (card) {
+        // 卡内可能有多个带 title 的按钮（复制路径等动作钮），只认长得像路径的 title
+        const btns = Array.from(card.querySelectorAll<HTMLElement>('button[title]'))
+        const raw = btns.map((b) => b.getAttribute('title') ?? '').find((s) => /[\\/]/.test(s)) ?? ''
+        if (raw) { e.preventDefault(); e.stopPropagation(); openFile(raw); return }
+      }
+      const chip = t.closest?.('button[data-ref-chip="file"], button[class*="fileMention"]')
+      if (chip) {
+        const raw = (chip.getAttribute('title') ?? '').replace(/^@/, '').replace(/^"|"$/g, '')
+        if (raw) { e.preventDefault(); e.stopPropagation(); openFile(raw); return }
+      }
+    }
     const open = props.onOpenLink
-    if (!open || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || e.button !== 0) return
-    const a = (e.target as HTMLElement | null)?.closest?.('a')
+    if (!open || !t) return
+    const a = t.closest?.('a')
     if (!a) return
     const href = a.getAttribute('href') ?? ''
     if (!/^https?:\/\//i.test(href)) return
@@ -198,6 +227,7 @@ function panePropsEqual(a: HostConversationPaneProps, b: HostConversationPanePro
     && a.renderFactorySlot === b.renderFactorySlot
     && a.viewName === b.viewName
     && a.onOpenLink === b.onOpenLink
+    && a.onOpenFile === b.onOpenFile
 }
 
 /**
