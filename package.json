@@ -1,0 +1,59 @@
+{
+  "name": "@dsh-external/dsh-newtype-multititle",
+  "version": "0.0.1",
+  "private": true,
+  "description": "NewType 工作台：tab 化会话列表 + 自由分栏（trellis 式，Ely 视觉口径）。DSH client-plugin。",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "src",
+    "cordis.patch.yml"
+  ],
+  "engines": {
+    "dsh": ">=0.1.7-rc"
+  },
+  "enginesComment": "E23：0.1.7-rc.2 与 0.2.0-rc.2 的六个接缝（conversation.content factory / SessionProvider 座位 / sidebar.panellist / sidebar.workspaces / 拖拽协议 / wSkVaW_* CSS）逐条比对一致，故 peer 取跨 minor 区间。",
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --experimental-strip-types --test test/state.test.mjs"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-slots"
+      ]
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.4",
+    "@deepseek-ai/dsh-client-ui-slots": ">=0.1.7-rc.2 <0.2.1",
+    "react": "^18.2.0"
+  },
+  "devDependencies": {
+    "@danfessler/trellis": "^0.3.0",
+    "@danfessler/trellis-react": "^0.3.0",
+    "@deepseek-ai/cordis": "4.0.1",
+    "@deepseek-ai/dsh-client-ui-slots": "0.1.0-rc.6",
+    "@types/node": "^22.20.5",
+    "@types/react": "~18.3.1",
+    "@types/react-dom": "^18.3.7",
+    "lightningcss": "^1.32.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.3.1",
+    "tsdown": "^0.22.2",
+    "typescript": "^5.9.3"
+  },
+  "license": "MIT"
+}

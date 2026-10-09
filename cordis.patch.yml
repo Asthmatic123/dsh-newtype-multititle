@@ -1,0 +1,5 @@
+# bundle 层 patch：把自己 insert 进插件树（格式实证 = dsh-huabu 的 patch：
+# id=行名，name=包 specifier 供解析；display 名不在这层）。
+- insert:
+    - id: dsh-newtype-multititle
+      name: '@dsh-external/dsh-newtype-multititle'

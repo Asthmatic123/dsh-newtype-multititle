@@ -1,0 +1,169 @@
+/* NewType tab 栏 + 工作台 · Ely GPUI 实测 token（05 §E12）：暖调中性 + 单一蓝 accent */
+
+/* 迷你 tab 标签（D13：只加标签，无品牌/无图标/无大 tab 条） */
+.minitabs{display:flex;gap:2px;padding:6px 8px 0;flex:none}
+.minitab{height:24px;padding:0 8px;border:0;border-radius:5px;background:transparent;color:var(--dsh-text-secondary,#86827e);cursor:pointer;font-size:11px}
+.minitab:hover{color:var(--dsh-text,#f4f2f0);background:var(--dsh-surface,#1e1c1a)}
+.minitabOn{color:var(--dsh-text,#f4f2f0);background:var(--dsh-surface,#232120);box-shadow:inset 0 2px 0 var(--dsh-primary,#69a1e8)}
+.minitabRight{margin-left:auto;display:flex;align-items:center}
+.gowork{height:22px;padding:0 8px;border:1px solid var(--dsh-line,#262422);border-radius:5px;background:transparent;color:var(--dsh-text-secondary,#86827e);cursor:pointer;font-size:11px}
+.gowork:hover{color:var(--dsh-text,#f4f2f0);border-color:var(--dsh-primary,#69a1e8)}
+
+.pif{flex:1;width:100%;height:100%;border:0;background:#fff}
+.ic{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;display:block}
+.spin{animation:nt-spin 1.1s linear infinite;transform-box:fill-box;transform-origin:center}
+@keyframes nt-spin{to{transform:rotate(360deg)}}
+
+/* ============ 工作台（conversation.view） ============ */
+/* 高度链双保险：宿主 viewArea 是 flex column（E2）→ flex:1 生效；
+   若被包了层有定高的普通 div → height:100% 兜底。缺一都会撑开成内容高。 */
+.wbWrap{display:flex;flex-direction:row;width:100%;height:100%;flex:1 1 0;min-height:0;overflow:hidden}
+.wbMain{display:flex;flex-direction:column;flex:1;min-width:0;min-height:0}
+/* E30：产出物栏常驻挂载，宽度过渡开合（原条件挂载无动画） */
+.wbRight{display:flex;flex-direction:column;width:0;flex:none;min-height:0;overflow:hidden;opacity:0;visibility:hidden;border-left:1px solid transparent;transition:width .24s cubic-bezier(.2,.7,.3,1),opacity .18s ease,visibility 0s linear .24s}
+.wbRightOn{width:264px;opacity:1;visibility:visible;border-left:1px solid var(--dsh-line,#262422);background:var(--dsh-bg,#131110);transition:width .24s cubic-bezier(.2,.7,.3,1),opacity .18s ease}
+.wbRight .panel{flex:1;min-height:0}
+.wbRight .hd{flex:none}
+.ptabIco{display:grid;place-items:center;flex:none;color:var(--dsh-primary,#69a1e8)}
+.ptabIco .ic{width:11px;height:11px}
+.stbar{position:fixed;left:0;right:0;bottom:0;height:22px;display:flex;align-items:center;gap:14px;padding:0 10px;background:var(--dsh-overlay,#1b1917);border-top:1px solid var(--dsh-line,#262422);font:11px/22px "Geist Variable",Inter,system-ui,"Microsoft YaHei",sans-serif;color:var(--dsh-text-secondary,#86827e);z-index:9999;pointer-events:auto}
+.stbBrand{color:var(--dsh-text,#f4f2f0);letter-spacing:.04em}
+.stbR{margin-left:auto;display:flex;gap:14px}
+
+/* 窗格 chrome（hash 类） */
+.pane{display:flex;flex-direction:column;min-width:0;min-height:0;flex:1;background:var(--dsh-bg,#131110);position:relative;overflow:hidden}
+.paneFocused .ptabs{box-shadow:inset 0 -1px 0 var(--dsh-primary,#69a1e8)}
+.ptabs{display:flex;align-items:center;gap:2px;height:34px;flex:none;padding:0 6px;background:var(--dsh-overlay,#1b1917);border-bottom:1px solid var(--dsh-line,#262422);overflow-x:auto;scrollbar-width:none}
+.ptab{display:flex;align-items:center;gap:5px;height:25px;padding:0 5px 0 10px;border-radius:5px;font-size:12px;color:var(--dsh-text-secondary,#86827e);cursor:pointer;max-width:200px;user-select:none;flex:none}
+.ptab:hover{color:var(--dsh-text,#f4f2f0);background:var(--dsh-surface,#1e1c1a)}
+.ptabOn{color:var(--dsh-text,#f4f2f0);background:var(--dsh-surface,#232120);box-shadow:inset 0 2px 0 var(--dsh-primary,#69a1e8)}
+.ptabT{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ptabX{display:grid;place-items:center;width:16px;height:16px;border:0;border-radius:4px;background:transparent;color:inherit;cursor:pointer;opacity:0;padding:0}
+.ptabX:hover{background:var(--dsh-line,#262422);color:var(--dsh-text,#f4f2f0)}
+.ptab:hover .ptabX,.ptabOn .ptabX{opacity:1}
+.ptabX .ic{width:11px;height:11px}
+.paneActions{margin-left:auto;display:flex;align-items:center;flex:none}
+.icbtn{display:grid;place-items:center;width:22px;height:22px;border:0;border-radius:5px;background:transparent;color:var(--dsh-text-secondary,#86827e);cursor:pointer;padding:0}
+.icbtn:hover{background:var(--dsh-surface,#1e1c1a);color:var(--dsh-text,#f4f2f0)}
+.icbtn .ic{width:13px;height:13px}
+.pbody{flex:1;min-height:0;display:flex;flex-direction:column}
+.pempty{margin:auto;padding:16px;font-size:12px;color:var(--dsh-faint,#5b5854);text-align:center;max-width:220px}
+.perr{margin:auto;padding:16px;font-size:12px;color:#c97b7b;text-align:center}
+
+/* 原版对话框宿主容器（D14-R2）。
+   宿主 factory 产出的是 `.body`（flex:1 / min-height:0），它预设自己有 flex 父容器；
+   宿主 MainPanel 给的那层 `.root` 我们没有 → 必须补一个等价的 root 层，
+   否则 .body 的 flex:1 落空、高度塌成内容高，composer 的 sticky bottom:0
+   会把输入框贴到窗格顶（症状见 Docs/demos/shots/smoke-d14b-3-workbench.png）。
+   逐条对齐宿主 .root 的 height:100% + flex column（05 §E22）。 */
+.hconvRoot{flex:1 1 0;min-height:0;height:100%;display:flex;flex-direction:column;overflow:hidden}
+
+/* 图页面板（main key newtype-pages，D14-L6） */
+.pgPanel{display:flex;flex-direction:column;width:100%;height:100%;flex:1 1 0;min-height:0;background:var(--dsh-bg,#131110)}
+.pgHead{display:flex;align-items:center;gap:8px;height:34px;flex:none;padding:0 12px;border-bottom:1px solid var(--dsh-line,#262422);background:var(--dsh-overlay,#1b1917)}
+.pgTitle{font-size:12px;color:var(--dsh-text,#f4f2f0)}
+.pgBadge{font-size:11px;color:var(--dsh-primary,#69a1e8)}
+.pgClear{margin-left:auto;height:20px;padding:0 8px;border:1px solid var(--dsh-line,#262422);border-radius:5px;background:transparent;color:var(--dsh-text-secondary,#86827e);cursor:pointer;font-size:11px}
+.pgClear:hover{color:var(--dsh-text,#f4f2f0);border-color:var(--dsh-primary,#69a1e8)}
+.pgList{flex:1;min-height:0;overflow-y:auto;padding:6px 0}
+.pgRow{display:flex;align-items:center;gap:7px;height:26px;padding:0 12px;font-size:12.5px;color:var(--dsh-text,#f4f2f0);cursor:pointer}
+.pgRow:hover{background:var(--dsh-surface,#1e1c1a)}
+.pgRow .ic{width:13px;height:13px;flex:none;color:var(--dsh-text-secondary,#86827e)}
+.pgName{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pgDot{margin-left:auto;width:5px;height:5px;border-radius:50%;background:var(--dsh-primary,#69a1e8);flex:none}
+.pgEmpty{margin:auto;padding:16px;font-size:12px;color:var(--dsh-faint,#5b5854);text-align:center}
+
+/* 消息流（只读投影） */
+.mlist{flex:1;min-height:0;overflow-y:auto;padding:12px 14px 20px;display:flex;flex-direction:column;gap:10px;font:13px/1.65 "Geist Variable",Inter,system-ui,"Microsoft YaHei",sans-serif;color:var(--dsh-text,#f4f2f0)}
+.muser{align-self:flex-end;max-width:92%;background:var(--dsh-surface,#232120);border-radius:9px 9px 3px 9px;padding:7px 11px;white-space:pre-wrap;word-break:break-word;font-size:12.5px}
+.massistant{align-self:flex-start;max-width:100%;white-space:pre-wrap;word-break:break-word}
+.mtool{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--dsh-faint,#5b5854);padding-left:2px}
+.mtool .ic{width:11px;height:11px;flex:none}
+.mflag{margin-left:6px;font-size:10.5px;color:var(--dsh-text-secondary,#86827e)}
+.mmore{font-size:11px;color:var(--dsh-faint,#5b5854);text-align:center;padding:4px 0}
+.caret{display:inline-block;width:7px;height:13px;margin-left:3px;vertical-align:-2px;background:var(--dsh-primary,#69a1e8);animation:nt-blink 1s steps(2) infinite}
+@keyframes nt-blink{50%{opacity:0}}
+
+/* ============ split 树骨架（Workspace.tsx 用裸类名，走 :global 逃生舱） ============ */
+:global(.nt-workspace){display:flex;flex:1;min-width:0;min-height:0}
+/* flex:1 不可省：根 split 必须占满 nt-workspace，否则按内容宽收缩，
+   右半边留出无人占的黑带（D14 冒烟实测：1320px 的容器里 split 只有 639px）。
+   flex:1 只加在根节点上（renderNode 的 tree 就是根），嵌套层由 .nt-child 顶着。 */
+:global(.nt-split.row){display:flex;flex:1;flex-direction:row;min-width:0;min-height:0}
+:global(.nt-split.col){display:flex;flex:1;flex-direction:column;min-width:0;min-height:0}
+:global(.nt-child){display:flex;min-width:0;min-height:0;flex-basis:0}
+:global(.nt-pane-wrap){position:relative;display:flex;min-width:0;min-height:0;flex:1}
+
+/* divider：1px 线 + 5px 热区；hover/拖动变 accent */
+:global(.nt-divider){position:relative;flex:none;z-index:3;background:transparent}
+:global(.nt-divider.row){width:9px;margin:0 -4px;cursor:col-resize}
+:global(.nt-divider.col){height:9px;margin:-4px 0;cursor:row-resize}
+:global(.nt-divider)::after{content:"";position:absolute;inset:0;background:var(--dsh-line,#262422)}
+:global(.nt-divider.row)::after{left:4px;right:4px;top:0;bottom:0}
+:global(.nt-divider.col)::after{top:4px;bottom:4px;left:0;right:0}
+:global(.nt-divider:hover)::after,:global(.nt-divider.act)::after{background:var(--dsh-primary,#69a1e8)}
+
+/* 拖拽落点高亮：边缘=accent 粗边，中心=整框 */
+:global(.nt-zhl){position:absolute;inset:0;pointer-events:none;z-index:6;opacity:0;transition:opacity .1s}
+:global(.nt-zhl.on){opacity:1}
+:global(.nt-zhl.on.lft){box-shadow:inset 3px 0 0 var(--dsh-primary,#69a1e8)}
+:global(.nt-zhl.on.rgt){box-shadow:inset -3px 0 0 var(--dsh-primary,#69a1e8)}
+:global(.nt-zhl.on.top){box-shadow:inset 0 3px 0 var(--dsh-primary,#69a1e8)}
+:global(.nt-zhl.on.btm){box-shadow:inset 0 -3px 0 var(--dsh-primary,#69a1e8)}
+:global(.nt-zhl.on.cnt){box-shadow:inset 0 0 0 1px var(--dsh-primary,#69a1e8);background:color-mix(in srgb,var(--dsh-primary,#69a1e8) 8%,transparent)}
+
+/* ============ D15 trellis 适配（字面类名走 :global 逃生舱） ============ */
+/* Workspace 容器：撑满工作台主区 */
+:global(.ntws){width:100%;height:100%}
+/* trellis view 内容容器撑满（官方 content 是 flex 子元素，这里拉成纵向 flex）。
+   E29：content 官方只有 position:absolute + left/top:0，无宽高 → 收缩包内容，
+   height:100% 链路塌掉、composer 的 sticky 落不到窗格底。必须显式撑满。 */
+:global(.trellis [data-trellis-part="content"]){inset:0;width:100%;height:100%;display:flex;flex-direction:column;font-size:16px}
+:global(.trellis [data-trellis-part="content"]>*){flex:1;min-height:0;min-width:0}
+/* tab 标题粗体（2026-10-09 主人要求；trellis 原生 500，:where 低优先级、这里必赢） */
+:global(.trellis [data-trellis-part="tab"]){font-weight:650}
+/* 代码块底色（2026-10-09 主人要求）：深色主题下代码块与正文底色太接近，给独立底 + 细边框；
+   2026-10-10 字号对齐正文：宿主给 code 的字号偏小，pre 与内部 code 一并拉平（不限主题） */
+/* 2026-10-10 行距：trellis 原版无 pre 专属设定（全局 1.3 继承），代码块行距偏挤 → pre 单独 1.6 */
+:global(.trellis [data-conversation-content] pre){font-size:16px;line-height:1.6}
+:global(.trellis [data-conversation-content] pre code){font-size:16px}
+:global(.trellis[data-theme="dark"] [data-conversation-content] pre){background:#0d1015;border:1px solid rgba(255,255,255,.09);border-radius:8px}
+/* 2026-10-10 回滚：[class*="header"] 子串匹配命中面过大，误染 tab 内部底色，只留上一条 pre（代码块本体） */
+/* 拖拽桥高亮（宿主行 HTML5 DnD 悬停时） */
+.dropHot{position:relative}
+.dropHot::after{content:'';position:absolute;inset:3px;border:2px dashed #4d8bff;border-radius:12px;pointer-events:none;z-index:50;background:rgba(77,139,255,.06)}
+/* accessory 三按钮（tab 条右端，per-surface 一份） */
+:global(.nt-accrow){display:inline-flex;align-items:center;gap:2px}
+:global(.nt-accwrap){position:relative;display:inline-flex;align-items:center}
+/* 浅色联动（2026-10-09）：颜色全部走 --dsh-*（WorkbenchView / portal 容器按主题注入） */
+:global(.nt-abtn){width:22px;height:22px;display:grid;place-items:center;border-radius:5px;color:var(--dsh-text-secondary,#9699a3);background:none;border:none;cursor:pointer;padding:0}
+:global(.nt-abtn:hover),:global(.nt-abtn.on){color:var(--dsh-text,#e7e8eb);background:var(--dsh-surface,#232120)}
+:global(.nt-abtn.on){color:var(--dsh-primary,#4d8bff)}
+/* 弹出菜单（portal 到 body；fixed 防双重裁剪；变量来自 portal 容器 inline style） */
+:global(.nt-menu){z-index:9999;min-width:190px;background:var(--dsh-overlay,#202126);border:1px solid var(--dsh-line,rgba(255,255,255,.1));border-radius:8px;box-shadow:0 12px 32px rgba(0,0,0,.5);padding:4px;display:flex;flex-direction:column;font-size:12px;color:var(--dsh-text,#e7e8eb)}
+:global(.nt-mi){display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;border-radius:6px;color:var(--dsh-text,#e7e8eb);text-align:left;background:none;border:none;cursor:pointer;font:inherit;white-space:nowrap}
+:global(button.nt-mi:hover){background:var(--dsh-surface,#232120)}
+:global(.nt-mi.static){color:var(--dsh-text-secondary,#9699a3);cursor:default}
+:global(.nt-mi.sel){background:color-mix(in srgb,var(--dsh-primary,#4d8bff) 12%,transparent)}
+:global(.nt-mk){margin-left:auto;font-size:10px;color:var(--dsh-primary,#4d8bff)}
+:global(.nt-cat){display:flex;flex-direction:column}
+:global(.nt-catname){font-size:10px;color:var(--dsh-faint,#6a6e78);padding:5px 10px 2px}
+
+/* ============ E32 内置浏览器 ============ */
+.webPane{display:flex;flex-direction:column;width:100%;height:100%;min-height:0;overflow:hidden}
+.webBar{display:flex;gap:6px;align-items:center;padding:6px 8px;flex:none;border-bottom:1px solid var(--dsh-line,#262422);background:var(--trellis-tabbar,#141518)}
+.webUrl{flex:1;min-width:0;height:26px;padding:0 10px;border-radius:6px;border:1px solid var(--dsh-line,#262422);background:var(--trellis-stage,#111215);color:var(--dsh-text,#d8d5d0);font-size:12px;outline:none}
+.webUrl:focus{border-color:var(--trellis-accent,#4d8bff)}
+.webGo{flex:none;height:26px;min-width:30px;padding:0 8px;border-radius:6px;border:1px solid var(--dsh-line,#262422);background:var(--trellis-stage,#111215);color:var(--dsh-text,#d8d5d0);font-size:12px;cursor:pointer}
+.webGo:hover{border-color:var(--trellis-accent,#4d8bff)}
+.webFrame{flex:1;min-height:0;width:100%;border:none;background:#fff}
+
+/* E34b：空会话 hero 内嵌的第二份 composerSeat 隐藏（真 composer 已固定底部，
+   hero 里那份悬在顶部形成「输入框贴顶」观感） */
+:global([data-nt="hconv"]) [class*="viewArea"] [class*="composerSeat"]{display:none!important}
+
+/* E34b：空会话隐藏欢迎页（hero 内嵌第二份 composer 顶在上方），composer 独占底部 */
+.hconvBlank{position:relative}
+:global([data-nt="hconv"].hconvBlank) [class*="scrollBody"]{display:flex;flex-direction:column;overflow:hidden}
+:global([data-nt="hconv"].hconvBlank) [class*="viewArea"]{display:none}
+:global([data-nt="hconv"].hconvBlank) [class*="composerSeat"]{margin-top:auto}
