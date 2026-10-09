@@ -4,6 +4,8 @@
 
 ![status](https://img.shields.io/badge/status-%E5%88%9D%E7%89%88%20v0.0.1-blue) ![dsh](https://img.shields.io/badge/dsh-0.1.7~0.2.0--rc.2-green) ![license](https://img.shields.io/badge/license-MIT-lightgrey)
 
+![自由工作台：多会话并行 · 自由分栏 · 每窗格宿主原版对话框](docs/shots/hero.webp)
+
 ## 功能
 
 - **自由分栏工作台**：基于 [trellis](https://www.npmjs.com/package/@danfessler/trellis) 的拖拽 dock —— 拖 tab 到边缘分栏、拖到中心并入、双击聚焦（zoom）、布局自动持久化，重启恢复。
