@@ -111,12 +111,23 @@ export const HostConversationPane = memo(function HostConversationPane(props: Ho
   const rootRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (state.phase !== 'ready') return
+    const root = rootRef.current
+    // NT1010A：blank 结束（发出第一条消息）后必须清掉 E34b 留下的内联样式——
+    // 内联 overflow:hidden 不随 .hconvBlank 摘除而消失，会把 scrollBody 滚动锁死
+    //（症状：新 tab 聊起来后对话区无上下滚动条）。逐项还原成宿主原值。
+    if (!blank) {
+      const sc = root?.querySelector<HTMLElement>('[class*="scrollBody"]')
+      if (sc) { sc.style.overflow = ''; sc.style.display = ''; sc.style.flexDirection = '' }
+      const va = root?.querySelector<HTMLElement>('[class*="viewArea"]')
+      if (va) va.style.display = ''
+      const seat = root?.querySelector<HTMLElement>('[class*="composerSeat"]')
+      if (seat) { seat.style.marginTop = ''; seat.style.position = '' }
+      return
+    }
     // E34b：空会话隐藏欢迎页（hero 内嵌第二份 composer 顶在上方）——内联样式，
     // CSS 模块类方案被宿主样式序/类名undefine连环坑掉（E34 实测），内联最稳
-    if (!blank) return
     let frames = 0
     const id = requestAnimationFrame(function tick() {
-      const root = rootRef.current
       if (!root) return
       const va = root.querySelector<HTMLElement>('[class*="viewArea"]')
       if (va) va.style.display = 'none'
@@ -128,6 +139,28 @@ export const HostConversationPane = memo(function HostConversationPane(props: Ho
     })
     return () => cancelAnimationFrame(id)
   }, [state.phase, blank, sessionId])
+
+  /** E43i（2026-10-12 bug&spec B4）：宿主 draft 状态与编辑器正文脱同步时，灰色占位
+   *  浮层（showPlaceholder 只看 draft===""）压在已有正文上叠印（白字灰字互咬）。
+   *  根子在宿主 ui-conversation 的 draft 单一真相源，插件侧止血：对账「编辑器有文
+   *  即藏占位」。竞态窗口 = 换 tab / 重挂载（key={settled.for} 整棵重挂 + 种子
+   *  effect + 镜像断窗），故就绪后 3 秒内每 250ms 对账；无文时置 '' 可逆还原。 */
+  useEffect(() => {
+    if (state.phase !== 'ready') return
+    const root = rootRef.current
+    if (!root) return
+    const reconcile = () => {
+      const ph = root.querySelector<HTMLElement>('[data-composer-placeholder]')
+      if (!ph) return
+      const ed = root.querySelector<HTMLElement>('[data-lexical-editor]')
+      const hasText = !!ed && (ed.textContent ?? '').trim().length > 0
+      ph.style.display = hasText ? 'none' : ''
+    }
+    reconcile()
+    const id = setInterval(reconcile, 250)
+    const stop = setTimeout(() => clearInterval(id), 3000)
+    return () => { clearInterval(id); clearTimeout(stop) }
+  }, [state.phase, sessionId])
 
   useEffect(() => {
     let ref: NtSessionRef | null = null

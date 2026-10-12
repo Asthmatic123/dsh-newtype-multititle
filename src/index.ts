@@ -91,6 +91,17 @@ export function apply(ctx: Context): void {
     }
 
     const handler = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+      // CORS preflight：client（宿主页面源）跨源 POST 探针数据，浏览器先发 OPTIONS
+      if (req.method === 'OPTIONS') {
+        res.writeHead(204, {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type',
+          'Access-Control-Max-Age': '600',
+        })
+        res.end()
+        return
+      }
       if (dirty) await rescan()
       const url = (req.url ?? '').split('?')[0]
       if (url === '/newtype/pages') {

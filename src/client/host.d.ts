@@ -77,6 +77,20 @@ interface NtSessionListState {
     blank?: boolean
     retainedBy?: Record<string, unknown> | string[]
   }>
+  /**
+   * B10-b：会话级投影（dsh-subagent catalog.js subagentCatalogProjectionDefinition；
+   * workspace client.js runningChildCount 同款读法）。子代理页签取数用。
+   */
+  projectionsBySession?: Record<string, {
+    values?: {
+      subagentCatalog?: readonly {
+        id: string
+        createdAt?: number
+        mode?: 'one-shot' | 'continuable' | 'unknown'
+        label?: string
+      }[]
+    }
+  }>
 }
 
 /**
@@ -124,6 +138,12 @@ declare module '@deepseek-ai/cordis' {
       openSession(target: string): void
       openWorkspace(workspaceId: string, beforeOpen?: unknown): Promise<void>
       startSession(workspaceId?: string): void
+      /* NT1011B 写操作（2026-10-11）：归档/置顶真写宿主。
+         运行中会话归档 reject 'workspace/session-active'（不停活动，调用方接住回滚） */
+      archiveSession(sessionId: string, opts?: { stopActivity?: boolean }): Promise<void>
+      unarchiveSession(sessionId: string): Promise<void>
+      pinSession(sessionId: string): Promise<void>
+      unpinSession(sessionId: string): Promise<void>
     }
     /**
      * 布局面（ui-layout service.d.ts 实证）：中央面板切换 + 右栏/侧栏控制。

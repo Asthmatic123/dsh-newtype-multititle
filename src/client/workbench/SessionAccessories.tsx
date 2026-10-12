@@ -13,7 +13,6 @@
  */
 import { useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import type { WorkspaceHandle } from '@danfessler/trellis-react'
 
 /* ---------- 通用图标 ---------- */
 /* 尺寸对齐 DSH 原版侧栏图标：16×16 · strokeWidth 1（2026-10-09 主人要求，探针实测原版口径） */
@@ -28,7 +27,6 @@ function Ico(props: { d: string; size?: number }) {
 const D_FOLDER = 'M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z'
 const D_GEAR = 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z'
 const D_DOWN = 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3'
-const D_SWAP = 'M8 3 4 7l4 4M4 7h16M16 21l4-4-4-4M20 17H4'
 const D_RBAR = 'M3 5h18v14H3zM15 5v14'
 const D_GLOBE = 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3.6 9h16.8M3.6 15h16.8M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18'
 
@@ -168,16 +166,12 @@ export function OpenInMenu(props: { getCwd?: () => string | null; vars?: Record<
   )
 }
 
-/* ---------- ② 齿轮：对话/轨迹切换 · 当前模式 · 下载日志 ---------- */
+/* ---------- ② 齿轮：下载日志（对话/轨迹切换已上移 B10 迷你页签，2026-10-12） ---------- */
 export function GearMenu(props: {
-  /** trellis view 句柄：setParams 切对话/轨迹（params 随布局持久化） */
-  setParams: (patch: Record<string, unknown>) => void
-  mode: 'chat' | 'trace'
   /** 浅色联动：portal 菜单容器上的 --dsh-* 变量 */
   vars?: Record<string, string>
 }) {
   const pop = usePop()
-  const mode = props.mode
   return (
     <div className="nt-accwrap" onMouseLeave={pop.arm} onMouseEnter={pop.cancel}>
       <button
@@ -191,10 +185,6 @@ export function GearMenu(props: {
       </button>
       {pop.open && createPortal(
         <div className="nt-menu" style={{ position: 'fixed', top: pop.pos.y, left: Math.max(8, pop.pos.x - 190), ...(props.vars ?? {}) }} onMouseEnter={pop.cancel} onMouseLeave={pop.arm}>
-          <button className="nt-mi" onClick={() => { pop.setOpen(false); props.setParams({ mode: mode === 'chat' ? 'trace' : 'chat' }) }}>
-            <Ico d={D_SWAP} />切换到{mode === 'chat' ? '轨迹' : '对话'}
-          </button>
-          <div className="nt-mi static">当前模式：{mode === 'chat' ? '对话 · 标准' : '轨迹 · 标准'}</div>
           <button className="nt-mi" title="接宿主 transcript 导出后启用">
             <Ico d={D_DOWN} />下载对话日志
           </button>
@@ -232,24 +222,19 @@ export function BrowserButton(props: { onOpen: () => void }) {
   )
 }
 
-/** accessory 行的总装：view 句柄 + 右栏服务由 WorkbenchView 注入 */
+/* SessionAccessories 总装：view 句柄 + 右栏服务由 WorkbenchView 注入
+ * （B10 起 mode 切换在窗格内迷你页签，gear 不再要 setParams/mode） */
 export function SessionAccessories(props: {
-  view: {
-    params?: Record<string, unknown>
-    setParams: (patch: Record<string, unknown>) => void
-  }
-  ws: WorkspaceHandle | null
-  onOpenBrowser?: () => void
   /** OpenIn 用：当前窗格会话的 cwd（宿主 open 路由要绝对目录） */
   getCwd?: () => string | null
   /** 浅色联动：注入到 portal 菜单容器上的 --dsh-* 变量（WorkbenchView 按 hostTheme 给） */
   vars?: Record<string, string>
+  onOpenBrowser?: () => void
 }) {
-  const mode = props.view.params?.mode === 'trace' ? 'trace' : 'chat'
   return (
     <div className="nt-accrow">
       <OpenInMenu getCwd={props.getCwd} vars={props.vars} />
-      <GearMenu setParams={props.view.setParams} mode={mode as 'chat' | 'trace'} vars={props.vars} />
+      <GearMenu vars={props.vars} />
       {props.onOpenBrowser && <BrowserButton onOpen={props.onOpenBrowser} />}
     </div>
   )

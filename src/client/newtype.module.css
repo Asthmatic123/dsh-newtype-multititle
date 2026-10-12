@@ -4,7 +4,11 @@
 .minitabs{display:flex;gap:2px;padding:6px 8px 0;flex:none}
 .minitab{height:24px;padding:0 8px;border:0;border-radius:5px;background:transparent;color:var(--dsh-text-secondary,#86827e);cursor:pointer;font-size:11px}
 .minitab:hover{color:var(--dsh-text,#f4f2f0);background:var(--dsh-surface,#1e1c1a)}
-.minitabOn{color:var(--dsh-text,#f4f2f0);background:var(--dsh-surface,#232120);box-shadow:inset 0 2px 0 var(--dsh-primary,#69a1e8)}
+/* B10-b：选中态改 trellis 口径——去底色，底部 2px accent 细条亮起（主人 2026-10-12） */
+.minitabOn{color:var(--dsh-text,#f4f2f0);background:transparent;box-shadow:inset 0 -2px 0 var(--dsh-primary,#69a1e8)}
+/* B10：会话窗格内容 = 子页签行 + 视图体（高度链对齐 .hconvRoot，页签 flex:none） */
+.sessub{display:flex;flex-direction:column;flex:1 1 0;min-height:0;height:100%;overflow:hidden}
+.sessub>.hconvRoot,.sessub>.pane{flex:1 1 0;min-height:0}
 .minitabRight{margin-left:auto;display:flex;align-items:center}
 .gowork{height:22px;padding:0 8px;border:1px solid var(--dsh-line,#262422);border-radius:5px;background:transparent;color:var(--dsh-text-secondary,#86827e);cursor:pointer;font-size:11px}
 .gowork:hover{color:var(--dsh-text,#f4f2f0);border-color:var(--dsh-primary,#69a1e8)}
@@ -122,6 +126,29 @@
 :global(.trellis [data-trellis-part="content"]>*){flex:1;min-height:0;min-width:0}
 /* tab 标题粗体（2026-10-09 主人要求；trellis 原生 500，:where 低优先级、这里必赢） */
 :global(.trellis [data-trellis-part="tab"]){font-weight:650}
+/* E47c：拖动 tab 换容器时那块「蓝色虚影」是 trellis 原生落点指示
+   （[data-trellis-part="drop-slot"]，style.css:743-757：z-index:3000 + 70% 底色 + inset 环），
+   它铺满整个目标窗格，于是盖住窗格底部的输入框（主人 2026-10-12 反馈「遮蔽」）。
+   去掉底色，只留 accent 描边环 → 落点仍可见，不再盖内容。
+   原规则在 :where() 里（特异性 0），此处 (0,3,0) 必胜。 */
+:global(.trellis [data-trellis-part="drop-slot"][data-visible]){
+  background:transparent;
+  box-shadow:inset 0 0 0 2px var(--trellis-accent,#4d8bff);
+}
+/* E47e（修正）：抬升预览是一个 171×260 的「空壳」——只有 tab 条 + 面板底色，
+   内部没有内容子树（DOM 实测 liftedParts 仅 tabbar/tabs/tab/…/frame-icon）。
+   它 z-index:3100 压在蓝色落点环（drop-slot z-index:3000）之上，把落点环整块挡掉，
+   主人 2026-10-12 反馈「还是会有虚影（落点）被遮挡」。
+   实测：只清底色无效——壳下面就是目标窗格同色面板（都是 rgb(26,27,31)），
+   真正画出那个「深色卡」的是 style.css:225 的 box-shadow。
+   故 底色透明 + 去阴影 + 降不透明度 → 只剩 tab 条跟随光标，落点环完整透出。
+   （注：早前误加的 [data-lifted] [data-trellis-part="content"]{visibility:hidden}
+   是空操作——抬升面板内根本没有 content 子树，已删。） */
+:global(.trellis[data-dragging] [data-trellis-part="panel"][data-lifted]){
+  opacity:.7;
+  background:transparent;
+  box-shadow:none;
+}
 /* 代码块底色（2026-10-09 主人要求）：深色主题下代码块与正文底色太接近，给独立底 + 细边框；
    2026-10-10 字号对齐正文：宿主给 code 的字号偏小，pre 与内部 code 一并拉平（不限主题） */
 /* 2026-10-10 行距：trellis 原版无 pre 专属设定（全局 1.3 继承），代码块行距偏挤 → pre 单独 1.6 */
@@ -158,9 +185,37 @@
 .webGo:hover{border-color:var(--trellis-accent,#4d8bff)}
 .webFrame{flex:1;min-height:0;width:100%;border:none;background:#fff}
 
+/* E47b：侧栏底部「自由栏位 / 2D列表」按钮（sidebar.footer.action 并排两颗）。
+   收起侧栏时只有图标。B8③（2026-10-12）：elygpui（GPUI）口径——细描边；
+   主人拍板两态都蓝字（accent），激活态加淡填充。侧栏 DOM 无 --dsh-* 变量，
+   取 --trellis-accent fallback 蓝。 */
+.footToggle{display:inline-flex;align-items:center;gap:6px;height:28px;max-width:100%;padding:0 10px;border-radius:6px;border:1px solid color-mix(in srgb,currentColor 28%,transparent);background:transparent;color:var(--trellis-accent,#4d8bff);font:inherit;font-size:12px;line-height:1;cursor:pointer;transition:border-color .15s ease,background .15s ease}
+.footToggle:hover{border-color:color-mix(in srgb,var(--trellis-accent,#4d8bff) 55%,transparent);background:color-mix(in srgb,var(--trellis-accent,#4d8bff) 10%,transparent)}
+.footToggleOn{color:var(--trellis-accent,#4d8bff);border-color:color-mix(in srgb,var(--trellis-accent,#4d8bff) 55%,transparent);background:color-mix(in srgb,var(--trellis-accent,#4d8bff) 12%,transparent)}
+.footToggleText{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+
+/* B10-b：子代理页签面板（SubagentsPane）。在 [data-nt=wb] 内，--dsh-* 变量可用。 */
+.subsPane{flex:1 1 0;min-height:0;overflow:auto;padding:8px 10px;display:flex;flex-direction:column;gap:2px}
+.subsRow{display:flex;align-items:center;gap:8px;min-height:30px;padding:0 8px;border:0;border-radius:6px;background:transparent;color:var(--dsh-text-secondary,#86827e);font:inherit;font-size:12px;cursor:pointer;text-align:left}
+.subsRow:hover{background:var(--dsh-surface,#1e1c1a);color:var(--dsh-text,#f4f2f0)}
+.subsTitle{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.subsState{flex:none;color:var(--dsh-faint,#5b5854);font-size:11px}
+.subsDot{width:7px;height:7px;border-radius:50%;flex:none;background:var(--dsh-faint,#5b5854)}
+.subsDotRun{background:#3fb27f}
+
 /* E34b：空会话 hero 内嵌的第二份 composerSeat 隐藏（真 composer 已固定底部，
    hero 里那份悬在顶部形成「输入框贴顶」观感） */
 :global([data-nt="hconv"]) [class*="viewArea"] [class*="composerSeat"]{display:none!important}
+
+/* B8② 精准版（2026-10-12 二次修正）：上一版整藏 settingsArea 误杀了头像行——
+   settings-general SettingsRoot 的 triggerRow 里是「头像 launcher（有则渲染）或
+   ⚙设置兜底按钮」二选一（client.js SettingsRoot renderSlot fallback）。
+   只藏兜底按钮：triggerRow 后缀全 bundle 唯一（bundle grep 实证），头像不受影响。 */
+:global([class*="triggerRow"] [class*="trigger"]){display:none!important}
+
+/* B10-b：选中/聚焦态禁用浏览器焦点框（主人 2026-10-12 截图反馈「粗框」=
+   Chromium 焦点 outline，非我们的样式）；选中标识只有底部 2px accent 细条。 */
+.minitab:focus,.minitab:focus-visible,.minitabOn:focus,.minitabOn:focus-visible{outline:none}
 
 /* E34b：空会话隐藏欢迎页（hero 内嵌第二份 composer 顶在上方），composer 独占底部 */
 .hconvBlank{position:relative}

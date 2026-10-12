@@ -115,15 +115,11 @@ function WebviewEngine(props: {
       }
       el.addEventListener('render-process-gone', onGone)
       el.addEventListener('destroyed', onGone)
-      // E40b 诊断探针（仅 console）：主框架加载失败 / 导航事件
-      el.addEventListener('did-attach', () => { console.info('[dsh-newtype] webview did-attach') })
+      // 主框架加载失败告警（保留）；did-attach / did-navigate 诊断日志已随探针清理撤除
       el.addEventListener('did-fail-load', (ev) => {
         const d = (ev as CustomEvent<{ errorCode?: number; errorDescription?: string; isMainFrame?: boolean }>).detail
         if (d?.isMainFrame === false) return
         console.warn('[dsh-newtype] webview did-fail-load', d?.errorCode, d?.errorDescription)
-      })
-      el.addEventListener('did-navigate', (ev) => {
-        console.info('[dsh-newtype] webview did-navigate →', (ev as CustomEvent<{ url?: string }>).detail?.url)
       })
       if (dead) return
       hostRef.current?.append(el)
@@ -150,7 +146,6 @@ function WebviewEngine(props: {
 
   return <div ref={hostRef} className={s.webFrame} data-nt="webview-host" />
 }
-
 export function WebPane(props: {
   url?: string
   setParams: (patch: Record<string, unknown>) => void
@@ -158,7 +153,6 @@ export function WebPane(props: {
   openWebTab?: (url: string) => void
 }) {
   const bridge = useMemo(desktopBridge, [])
-  useEffect(() => { console.info('[dsh-newtype] browser bridge =', bridge ? 'webview(桌面)' : 'iframe(无桥)') }, [bridge])
   const [draft, setDraft] = useState(props.url ?? '')
   // E35：对话点链接 / 齿轮按钮从外部带 url 打开时，URL 栏跟着显示新地址
   useEffect(() => { setDraft(props.url ?? '') }, [props.url])
