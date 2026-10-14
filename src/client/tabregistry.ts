@@ -22,9 +22,18 @@ type Opener = (id: string) => void
 const tabs = new Map<string, NtExtTab>()
 const subs = new Set<Listener>()
 const openers = new Map<string, Opener>()
+let lastChangeAt = Date.now()
 
 function notify(): void {
+  lastChangeAt = Date.now()
   for (const f of [...subs]) { try { f() } catch { /* 单个订阅者异常不影响其余 */ } }
+}
+
+/** 距注册表最近一次变更的毫秒数。NT1011F：Workspace 挂载前等它安静（≥800ms），
+ *  保证「storage 恢复布局」发生时各插件 tab 类型已声明——否则恢复出占位僵尸 tab
+ *  （标题在、内容空、关不掉，2026-10-13 桌面实机实锤）。 */
+export function registryQuietMs(): number {
+  return Date.now() - lastChangeAt
 }
 
 export const tabHost = {
@@ -36,12 +45,19 @@ export const tabHost = {
   },
   openTab(id: string): boolean {
     if (!tabs.has(id)) return false // 注册表为空/无此 tab：静默
+    lastChangeAt = Date.now() // 打开也算变更：WorkbenchView 的安静窗检测覆盖运行期注册
     const open = openers.get(id)
     if (!open) return false
     try { open(id); return true } catch { return false }
   },
   hasTab(id: string): boolean {
     return tabs.has(id)
+  },
+  /** 注销一个 tab 声明（2dlist 卸载清理用；无此 id = false）。 */
+  unregisterTab(id: string): boolean {
+    const ok = tabs.delete(id)
+    if (ok) notify()
+    return ok
   },
   onRegistryChange(cb: Listener): () => void {
     subs.add(cb)

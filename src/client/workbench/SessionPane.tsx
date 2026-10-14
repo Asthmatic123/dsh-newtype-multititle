@@ -31,7 +31,7 @@ function blocksText(blocks: readonly NtContentBlock[] | undefined): string {
 }
 
 /** 整窗派生：durable 事件 → 行；transient live-chunk 按 attemptId 折叠成流式尾巴。 */
-export function projectWindow(win: NtEventWindow | null): Row[] {
+function projectWindow(win: NtEventWindow | null): Row[] {
   const rows: Row[] = []
   const live = new Map<string, { text: string; seq: number }>()
   const entries = win?.entries ?? []

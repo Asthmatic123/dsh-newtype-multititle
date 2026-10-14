@@ -28,6 +28,7 @@ import { ArtifactsPanel } from './workbench/ArtifactsPanel.tsx'
 import { Statusbar } from './shell/Statusbar.tsx'
 import { artifactPanelBus, artRail, openTabBus, setPendingSession } from './bus.ts'
 import { subscribeTabs, tabHost, installTabHost } from './tabregistry.ts'
+import { isDotsMode, setDotsModeSidebar, subscribeDotsMode, toggleDotsMode } from './dotsmode.ts'
 import { retainedByMainView } from './pages.ts'
 
 /** main 槽的 key，必须与 sidebar.panellist 条目 id 一一对应（PointRow → selectPanel）。 */
@@ -146,13 +147,12 @@ function DotsIcon(props: { size?: number }) {
 
 /**
  * B8①（2026-10-12 主人拍板）：底部第二颗按钮「2D列表」= 点图触发器。
- * 2026-10-13 拆分改版：huabu tab 本体已拆到独立插件 2dlist，本按钮改为读
- * window.__ntMultititle 注册表——2dlist 未注册 'dots' 时按钮隐藏（useSyncExternalStore
- * 响应式，2dlist 晚挂载也能出现）。点击保留点图行中转链路语义：先 emit('dots')
- * （工作台未挂载时由总线 pending 记住），再 selectPanel(MAIN_WORKBENCH) 拉起工作台；
- * WorkbenchView 的 'dots' 分流改走 tabHost.openTab('dots')（注册表为空时静默）。
- * 并排依据：宿主 .footerActions 是 display:flex 行，sidebar.footer.action 是
- * kind:list，多注册项自动横排（ui-sidebar lib/client.js footArea 样式）。
+ * 2026-10-13 拆分改版：huabu tab 本体已拆到独立插件 2dlist，本按钮读
+ * window.__ntMultititle 注册表——2dlist 未注册 'dots' 时按钮隐藏。
+ * 2026-10-13 方案 A（主人拍板）：点击改调本插件 toggleDotsMode()（dotsmode.ts）——
+ * 折叠宿主原版侧栏 + 工作台专用靠左 dots 窗格；工作台未挂载（impl 缺席）→
+ * 旧兜底：emit('dots')（总线 pending 记住）+ 切工作台面板。
+ * 并排依据：宿主 .footerActions 是 display:flex 行（ui-sidebar footArea 样式）。
  */
 function DotsBtn(props: { wide?: boolean }) {
   const hasDots = useSyncExternalStore(
@@ -160,16 +160,19 @@ function DotsBtn(props: { wide?: boolean }) {
     () => tabHost.hasTab('dots'),
     () => tabHost.hasTab('dots'),
   )
+  const on = useSyncExternalStore(subscribeDotsMode, isDotsMode, isDotsMode)
   if (!hasDots) return null
   return (
     <button
       type="button"
-      className={s.footToggle}
+      className={s.footToggle + (on ? ' ' + s.footToggleOn : '')}
       aria-label="2D列表"
-      title="打开 2D 列表（点图）"
+      aria-pressed={on}
+      title={on ? '退出 2D 列表模式（还原布局与侧栏）' : '2D 列表模式（折叠侧栏 + 靠左点图窗格）'}
       onClick={() => {
-        openTabBus.emit('dots')
         try { ntSelectPanel?.(MAIN_WORKBENCH) } catch { /* 布局缺席：静默 */ }
+        if (toggleDotsMode()) return
+        openTabBus.emit('dots') /* 工作台未挂载：总线 pending 记住，挂载后补开 */
       }}
     >
       <DotsIcon />
@@ -292,6 +295,9 @@ function armNewSessionDelivery(ctx: Context, start: () => unknown): unknown {
     throw e
   }
 }
+
+/** NT1013B：openSession 目标除会话 id（string）外还有 SubagentAddress（B10-b）。 */
+type NtOpenSessionTarget = { parentSessionId: string; childSessionId: string; mode: string }
 
 /** 公共 inject 工厂：惰性读 ctx（apply 时序安全） */
 function sharedInject(ctx: Context) {
@@ -417,6 +423,17 @@ export function apply(ctx: Context): void {
   //    宿主 PanelRow 的 onClick 写死单向 selectPanel(id)，没有 toggle（lib/client.js:184-186），
   //    所以开关落在「onClick 归注册方」的 footer.action 槽；两态由插件自持 (ntFreeMode)。
   ntSelectPanel = (id) => ctx.layout?.selectPanel(id as never)
+  // 方案 A（2026-10-13）：宿主侧栏折叠钩子 → dotsmode。缝（已核实 0.1.7-rc.2）：
+  //  API：ctx.layout.toggleSidebar()（host.d.ts:155；ui-layout lib/client.js:478-479）；
+  //  折叠态探测：宿主 frame 挂 data-sidebar-collapsed 属性（ui-layout lib/client.js
+  //  `"data-sidebar-collapsed": sidebarCollapsed || void 0`）。全部带失败静默。
+  if (ctx.layout?.toggleSidebar) {
+    setDotsModeSidebar({
+      isCollapsed: () => { try { return !!document.querySelector('[data-sidebar-collapsed]') } catch { return true } },
+      collapse: () => { try { ctx.layout!.toggleSidebar(); return true } catch { return false } },
+      restore: () => { try { ctx.layout!.toggleSidebar(); return true } catch { return false } },
+    })
+  }
   ctx.effect(
     () => ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register(
       { name: 'sidebar.footer.action', id: 'newtype-wb-toggle', order: 30 } as never,
@@ -546,19 +563,28 @@ export function apply(ctx: Context): void {
       const curOpen = ws.openSession as ((t: string) => void) | undefined
       if (typeof curOpen === 'function' && !marked(curOpen)) {
         const origOpen = curOpen.bind(ws)
-        const wrappedOpen = (target: string) => {
+        // NT1013B（bug&spec 10-13 子代理行）：target 除会话 id 外还有 SubagentAddress
+        // 对象（B10-b 子代理页签点击）。旧代码 String(target) 把对象打成
+        // "[object Object]" 发进总线，工作台拿它当 sid 去 sessions.retain →
+        // 宿主抛 `unknown session [object Object]`，子代理「有时点不开」。
+        // 修正：对象取 childSessionId 作为工作台 tab 的 sid（retain 走
+        // resolveTarget 的 catalog 地址推导，父会话 catalog 在场即可解析）。
+        const tabSidOf = (t: string | NtOpenSessionTarget): string =>
+          typeof t === 'string' ? t : String(t?.childSessionId ?? '')
+        const wrappedOpen = (target: string | NtOpenSessionTarget) => {
+          const sid = tabSidOf(target)
           // E47：自由栏位关闭（原始对话模式）→ 宿主行为原样，插件一步都不插手
-          if (!ntFreeMode) { origOpen(target); return }
+          if (!ntFreeMode) { origOpen(target as never); return }
           try {
-            origOpen(target)
+            origOpen(target as never)
           } catch (e) {
             // 原版失败：保持「恒进工作台」的降级行为后原样上抛
-            openTabBus.emit(String(target))
+            openTabBus.emit(sid)
             try { ctx.layout?.selectPanel(MAIN_WORKBENCH as never) } catch { /* 布局缺席 */ }
             throw e
           }
           // 原版 replaceMain("reveal") 已同步落 selectPanel(null)：此刻登记链路已完成，夺回
-          openTabBus.emit(String(target))
+          openTabBus.emit(sid)
           try { ctx.layout?.selectPanel(MAIN_WORKBENCH as never) } catch { /* 布局缺席 */ }
         }
         ;(ws as { openSession: unknown }).openSession = wrappedOpen

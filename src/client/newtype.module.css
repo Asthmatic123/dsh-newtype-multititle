@@ -207,15 +207,13 @@
    hero 里那份悬在顶部形成「输入框贴顶」观感） */
 :global([data-nt="hconv"]) [class*="viewArea"] [class*="composerSeat"]{display:none!important}
 
-/* B8② 精准版（2026-10-12 二次修正）：上一版整藏 settingsArea 误杀了头像行——
-   settings-general SettingsRoot 的 triggerRow 里是「头像 launcher（有则渲染）或
-   ⚙设置兜底按钮」二选一（client.js SettingsRoot renderSlot fallback）。
-   只藏兜底按钮：triggerRow 后缀全 bundle 唯一（bundle grep 实证），头像不受影响。 */
-:global([class*="triggerRow"] [class*="trigger"]){display:none!important}
+/* B8② 已回滚（2026-10-13 主人反馈）：triggerRow 隐藏在桌面把头像/菜单按钮一起藏了，
+   撤全部设置隐藏规则，侧栏底部完全回原版。 */
 
-/* B10-b：选中/聚焦态禁用浏览器焦点框（主人 2026-10-12 截图反馈「粗框」=
-   Chromium 焦点 outline，非我们的样式）；选中标识只有底部 2px accent 细条。 */
-.minitab:focus,.minitab:focus-visible,.minitabOn:focus,.minitabOn:focus-visible{outline:none}
+/* B10-b：粗框=焦点/选中态的 outline/边框（非我们的样式）——!important 全压，
+   选中标识只保留底部 2px accent 细条。 */
+.minitabs button{outline:none!important;border:0!important}
+.minitabs button:focus,.minitabs button:focus-visible,.minitabs button[aria-selected="true"]{outline:none!important;border:0!important;box-shadow:inset 0 -2px 0 var(--dsh-primary,#69a1e8)!important}
 
 /* E34b：空会话隐藏欢迎页（hero 内嵌第二份 composer 顶在上方），composer 独占底部 */
 .hconvBlank{position:relative}

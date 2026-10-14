@@ -24,7 +24,8 @@ import { HostConversationPane } from './HostConversationPane.tsx'
 import { PagePane } from './PagePane.tsx'
 import { FilePane } from './FilePane.tsx'
 import { WebPane } from './WebPane.tsx'
-import { getTab, setTabOpener, subscribeTabs, tabHost, type NtExtTab } from '../tabregistry.ts'
+import { getTab, registryQuietMs, setTabOpener, subscribeTabs, tabHost, type NtExtTab } from '../tabregistry.ts'
+import { dotsModeAbort, isDotsMode, setDotsModeImpl } from '../dotsmode.ts'
 import { ArtifactsPanel } from './ArtifactsPanel.tsx'
 import { SessionAccessories, NT_VARS } from './SessionAccessories.tsx'
 import { SessionSubTabs, SubagentsPane, JobsPane, type NtSessionMode } from './SubagentsPane.tsx'
@@ -53,61 +54,6 @@ export interface WorkbenchProps {
 
 const TRELLIS_STORAGE_KEY = 'dsh-newtype.trellis.v1'
 
-/**
- * E43v2：tab 排末尾「＋」。命令式插进 trellis 的 [data-trellis-part="tabs"]
- * （每个面板一个，flex+gap 排）当最后一个 tab 的兄弟节点——贴标签右侧、
- * 随横向滚动，纯原生 flex 排版（DOM 铁律合规，无坐标手算）。
- * 为什么不用 portal：tabs 容器是 trellis 自己的 React 渲染根，重渲染会把
- * 外来 portal 子树冲掉（真机实证「＋」不出现）。改为观察者 + 缺失即补插
- * （与 openSession 实例 patch 同款思路），卸载时统一摘除。
- */
-function TabPlus(props: { containerRef: React.RefObject<HTMLDivElement | null>; onClick: () => void }) {
-  const onClickRef = useRef(props.onClick)
-  onClickRef.current = props.onClick
-  useEffect(() => {
-    const container = props.containerRef.current ?? document.body
-    const made = new Set<HTMLButtonElement>()
-    const make = () => {
-      const b = document.createElement('button')
-      b.dataset.nt = 'tabnew'
-      b.title = '新建会话'
-      b.textContent = '＋'
-      Object.assign(b.style, {
-        flex: '0 0 auto', alignSelf: 'stretch', width: '22px',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: '0 4px',
-        border: 'none', outline: 'none',
-        borderRadius: 'var(--trellis-tab-radius, 6px) var(--trellis-tab-radius, 6px) 0 0',
-        // E43c：选中 tab 同款顶部 2px accent 细条 + tab 底色（主人指名的淡蓝顶条样式）
-        background: 'linear-gradient(var(--trellis-accent, #4d8bff), var(--trellis-accent, #4d8bff)) center top / 100% 2px no-repeat, var(--trellis-tab, rgba(127,127,127,.15))',
-        color: 'var(--trellis-text-muted, #8a8f98)',
-        fontSize: '13px', lineHeight: '1', cursor: 'pointer', opacity: '0.85',
-      } as CSSStyleDeclaration)
-      const hoverBg = () => 'linear-gradient(var(--trellis-accent, #4d8bff), var(--trellis-accent, #4d8bff)) center top / 100% 2px no-repeat, var(--trellis-tab-hover, rgba(127,127,127,.2))'
-      const restBg = () => 'linear-gradient(var(--trellis-accent, #4d8bff), var(--trellis-accent, #4d8bff)) center top / 100% 2px no-repeat, var(--trellis-tab, rgba(127,127,127,.15))'
-      b.addEventListener('mouseenter', () => { b.style.background = hoverBg(); b.style.color = 'var(--trellis-text, #d8d5d0)' })
-      b.addEventListener('mouseleave', () => { b.style.background = restBg(); b.style.opacity = '0.85' })
-      b.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); onClickRef.current() })
-      made.add(b)
-      return b
-    }
-    const ensure = () => {
-      container.querySelectorAll<HTMLElement>('[data-trellis-part="tabs"]').forEach((tabs) => {
-        if (!tabs.querySelector('[data-nt="tabnew"]')) tabs.appendChild(make())
-      })
-    }
-    ensure()
-    const mo = new MutationObserver(ensure)
-    mo.observe(container, { childList: true, subtree: true })
-    return () => {
-      mo.disconnect()
-      made.forEach((b) => b.remove())
-      made.clear()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- containerRef 身份稳定
-  }, [])
-  return null
-}
 /** 字号/字体对齐 DSH 原版（2026-10-09 主人要求）：tab 14px（原 12.5 显小）、字体继承宿主栈；
  *  Y 向加长（同日追加）：tab 条 34→40px、内衬 8→6px，tab 本体 18→28px 高 */
 const TRELLIS_FONT_TOKENS: Record<string, string> = {
@@ -116,14 +62,22 @@ const TRELLIS_FONT_TOKENS: Record<string, string> = {
   '--trellis-tabbar-height': '40px',
   '--trellis-tab-inset': '6px',
 }
-/** dark 主题的 DSH 深黑口径（demo 同款 tokens，2026-10-09 回退保持原值） */
+/** dark 主题的 DSH 深黑口径（demo 同款 tokens，2026-10-09 回退保持原值）。
+ *  2026-10-13 tab 条底色跟 DSH 主题（主人要求）：tabbar = DSH bg（#131110），
+ *  tab-active = DSH surface（#1e1c1a），替换原 trellis 冷黑 #141518/#1a1b1f。 */
 const TRELLIS_DARK_TOKENS: Record<string, string> = {
   '--trellis-bg': '#0c0d0f',
   '--trellis-stage': '#111215',
   '--trellis-panel': '#1a1b1f',
-  '--trellis-tabbar': '#141518',
-  '--trellis-tab-active': '#1a1b1f',
+  '--trellis-tabbar': '#131110',
+  '--trellis-tab-active': '#1e1c1a',
   '--trellis-accent': '#4d8bff',
+}
+/** light 主题补丁（2026-10-13）：只覆盖 tab 条两色，跟 DSH 浅色面板（NT_VARS.light：
+ *  bg #ffffff / surface #eef0f3）；trellis 默认浅色 tabbar #f1f1f4 偏灰，不跟主题。 */
+const TRELLIS_LIGHT_TOKENS: Record<string, string> = {
+  '--trellis-tabbar': '#ffffff',
+  '--trellis-tab-active': '#eef0f3',
 }
 
 /** 宿主主题探测：html 内联 color-scheme（data-ds-theme-source=system 时随 OS 变，MutationObserver 跟随） */
@@ -134,6 +88,29 @@ function readHostTheme(): 'light' | 'dark' {
 }
 
 const subNoop = () => () => {}
+
+/** dots tab 图标（2026-10-13）：14x14 雷达点图，形状对齐 2dlist 的 DotsIcon
+ *  （multititle 侧独立 inline 常量，不跨插件引组件）。模块级：renderSession 身份稳定。 */
+const DotsTabIcon = (
+  <svg
+    viewBox="0 0 24 24"
+    width="14"
+    height="14"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.5}
+    strokeLinecap="round"
+    aria-hidden="true"
+  >
+    <path d="M12 3a9 9 0 0 1 9 9" />
+    <path d="M12 7.2a4.8 4.8 0 0 1 4.8 4.8" />
+    <path d="M12 12l5.6-5.6" />
+    <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" />
+    <circle cx="17" cy="15.4" r="1.1" fill="currentColor" stroke="none" />
+    <circle cx="9.2" cy="17" r="1" fill="currentColor" stroke="none" />
+    <circle cx="7" cy="12.6" r=".9" fill="currentColor" stroke="none" />
+  </svg>
+)
 
 /** 外部插件注册的 tab（__ntMultititle 注册表）→ trellis ViewType 渲染体。
  *  跨插件边界不带 React 类型（对侧 bundle 自带组件、共享 loader 的 React 实例），窄 cast。 */
@@ -314,6 +291,21 @@ export function WorkbenchView(props: WorkbenchProps) {
   // （2dlist 插件 registerTab 进来；未注册 = 不渲染该 ViewType，useSyncExternalStore 响应式）。
   const dotsTab = useSyncExternalStore(subscribeTabs, () => getTab('dots'), () => getTab('dots'))
 
+  // NT1011F（主人拍板）：dots 模式 ON 期间手动关掉 dots tab → 自动翻回 OFF + 还原侧栏。
+  // 信号是「DOM 里 dots 视图消失」而非 tab 注册表——关视图不注销注册（第一版挂错信号，
+  // effect 永不触发，真机实锤）。检测放看门狗 tick（下方 useEffect）。
+
+  // NT1011F：等 tab 注册表安静（≥800ms 无变更）再挂 Workspace，上限 2.5s 强制放行。
+  // 目的：storage 恢复布局发生时外部插件 tab 类型已声明，防占位僵尸 tab（详见 tabregistry.ts）。
+  const [wsReady, setWsReady] = useState(false)
+  useEffect(() => {
+    const t0 = Date.now()
+    const t = setInterval(() => {
+      if (registryQuietMs() >= 800 || Date.now() - t0 > 2500) { clearInterval(t); setWsReady(true) }
+    }, 100)
+    return () => clearInterval(t)
+  }, [])
+
   // 空态自动预置：trellis 布局里一个 session view 都没有时，把当前会话开进来（绝不覆盖已开 tab）
   useEffect(() => {
     if (!mainViewId || !wsRef.current) return
@@ -339,6 +331,386 @@ export function WorkbenchView(props: WorkbenchProps) {
     setTimeout(() => clearInterval(t), 10000) // 保险丝
   }, [])
   useEffect(() => { setTabOpener('dots', openDotsWhenReady) }, [openDotsWhenReady])
+
+  // 方案 A（2026-10-13 主人拍板）：dots 模式执行端（dotsmode.ts）。
+  // ON  = 等 ws 就绪 → 深拷贝快照当前 trellis 文档（含 root/views/-floating）→
+  //       开「专用靠左窗格」：placement {beside: 首个 docked 面板, edge:'left', share:0.3}
+  //       （trellis open 的显式 beside 落位，比模糊的 'side' 确定）。
+  // OFF = setDocument 还原快照（trellis getDocument/setDocument，dist/index.d.ts:539/544）。
+  // ws 5 秒未就绪 → dotsModeAbort()（翻回 OFF + 还原我们折的侧栏）。
+  const dotsSnapRef = useRef<unknown>(null)
+  const dotsPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const dotsCalRef = useRef<ReturnType<typeof setInterval> | null>(null) /* NT1011H：校准计时器句柄，OFF 时清 */
+  /* NT1011K（2026-10-14）：暴露「当前开着哪些 session 视图」给 2dlist 引擎对账——
+     关 tab 后蓝虚光环同步摘除。读 trellis 文档收 session 视图的 params.sid。 */
+  useEffect(() => {
+    const w = window as unknown as { __ntSessionTabs?: () => string[] | null; __ntDocDump?: () => unknown; __ntOpenSessionTab?: (sid: string) => boolean }
+    w.__ntSessionTabs = () => {
+      try {
+        const doc = wsRef.current?.getDocument() as any
+        const sids: string[] = []
+        const walk = (n: any): void => {
+          if (!n || typeof n !== 'object') return
+          if (n.kind === 'panel') {
+            for (const v of n.views ?? []) {
+              if (typeof v === 'string') continue
+              if (v?.type === 'session' && typeof v?.params?.sid === 'string') sids.push(v.params.sid)
+            }
+            return
+          }
+          for (const c of n.children ?? []) walk(c)
+          if (n.child) walk(n.child)
+        }
+        walk(doc?.root)
+        return sids
+      } catch { return null }
+    }
+    /* 诊断：dump trellis 文档原文（查 session 视图真实形状；随对账功能一起清理） */
+    w.__ntDocDump = () => {
+      try { return wsRef.current?.getDocument() ?? null } catch { return null }
+    }
+    /* NT1011N（2026-10-14 主人拍板）：2dlist 双击开会话的受控落位——
+       显式 open 进「第一个不含 dots 的面板」（正常工作区），绝不落 dots 窗格及邻近；
+       没有非 dots 面板（stage 全空）时才用默认落位（trellis 会建新面板，也不挨 dots）。 */
+    w.__ntOpenSessionTab = (sid: string) => {
+      try {
+        const ws = wsRef.current
+        if (!ws) return false
+        const doc = ws.getDocument() as any
+        const panels: string[] = []
+        const walk = (n: any): void => {
+          if (!n || typeof n !== 'object') return
+          if (n.kind === 'panel') {
+            const hasDots = (n.views ?? []).some((v: any) => (typeof v === 'string' ? /^dots-/.test(v) : v?.type === 'dots'))
+            if (!hasDots) panels.push(String(n.id))
+            return
+          }
+          for (const c of n.children ?? []) walk(c)
+          if (n.child) walk(n.child)
+        }
+        walk(doc?.root)
+        const placement: any = panels.length ? { into: panels[0] } : undefined
+        ws.open('session', { params: { sid }, reuse: 'params', ...(placement ? { placement } : {}) } as never)
+        return true
+      } catch { return false }
+    }
+    return () => { delete w.__ntSessionTabs; delete w.__ntDocDump; delete w.__ntOpenSessionTab }
+  }, [])
+  /* NT1011J（2026-10-14 主人拍板）：漂移自动取证——ON/OFF/宽度突变(>40px)时自动把
+     weights+视觉宽写 console 与 localStorage('nt2dlist.diaglog'，环形 50 条)，主人零动作 */
+  const dotsLastWRef = useRef<number | null>(null)
+  const dotsDiag = useCallback((event: string) => {
+    try {
+      const ws = wsRef.current
+      const el = wrapRef.current?.querySelector<HTMLElement>('#ntDotsRoot')
+      const w = el ? Math.round(el.getBoundingClientRect().width) : null
+      const doc = ws ? (ws.getDocument() as any) : null
+      const weights: number[] = []
+      const walk = (n: any): void => {
+        if (!n || typeof n !== 'object') return
+        if (n.kind === 'split' && Array.isArray(n.weights)) weights.push(...n.weights.map((x: number) => Number(x.toFixed(3))))
+        for (const c of n.children ?? []) walk(c)
+        if (n.child) walk(n.child)
+      }
+      walk(doc?.root)
+      const rec = { t: new Date().toISOString().slice(11, 23), event, w, weights }
+      console.debug('[nt2d][diag]', JSON.stringify(rec))
+      const arr: unknown[] = JSON.parse(localStorage.getItem('nt2dlist.diaglog') ?? '[]')
+      arr.push(rec)
+      localStorage.setItem('nt2dlist.diaglog', JSON.stringify(arr.slice(-50)))
+      /* NT1011J：跨实例统一落盘——2dlist host 半 diag sink（127.0.0.1:3095）追加 ~/.dsh/nt2dlist-diag.jsonl；
+         缺席/多实例端口冲突时静默失败，localStorage 兜底仍在 */
+      try {
+        void fetch('http://127.0.0.1:3095/diag', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-token': 'nt2d-diag' },
+          body: JSON.stringify({ origin: location.origin, ...rec }),
+        }).catch(() => { /* sink 缺席：静默 */ })
+      } catch { /* 取证失败不影响主流程 */ }
+    } catch { /* 取证失败不影响主流程 */ }
+  }, [])
+  useEffect(() => {
+    setDotsModeImpl((on) => {
+      if (on) {
+        if (dotsPollRef.current) clearInterval(dotsPollRef.current)
+        /* NT1011H：每轮 ON 重置回弹样本/自愈标记——上一轮的样本不带本轮上下文，跨周期复用会弹回旧宽度 */
+        dotsGoodDocRef.current = null
+        dotsFixTriedRef.current = false
+        let tries = 0
+        dotsPollRef.current = setInterval(() => {
+          /* NT1011H：点火前复查模式——快开快关时 OFF 先到（dotsSnapRef 还是 null、无从还原），
+             此处若照常开窗会留下没校准的孤儿 dots 窗格（watchdog 因 mode OFF 全体早退，
+             宽度失控缩不回——真机 750px 漂移的候选根源） */
+          if (!isDotsMode()) { if (dotsPollRef.current) { clearInterval(dotsPollRef.current); dotsPollRef.current = null } return }
+          const ws = wsRef.current
+          if (!ws) {
+            if (++tries >= 50) { // 保险丝：工作台没就绪 → 回退模式
+              if (dotsPollRef.current) { clearInterval(dotsPollRef.current); dotsPollRef.current = null }
+              dotsModeAbort()
+            }
+            return
+          }
+          if (dotsPollRef.current) { clearInterval(dotsPollRef.current); dotsPollRef.current = null }
+          try {
+            const doc = ws.getDocument()
+            dotsSnapRef.current = JSON.parse(JSON.stringify(doc))
+            // 首个 docked 面板（DFS：split 有 children，stage 有 child，panel 即命中）
+            const firstPanel = (n: any): string | null => {
+              if (!n || typeof n !== 'object') return null
+              if (n.kind === 'panel') return String(n.id)
+              for (const c of n.children ?? []) { const hit = firstPanel(c); if (hit) return hit }
+              return n.child ? firstPanel(n.child) : null
+            }
+            const beside = firstPanel(doc?.root)
+            ws.open('dots', {
+              params: {},
+              reuse: 'none',
+              focus: true,
+              placement: beside ? { beside, edge: 'left', share: 0.25 } : 'side',
+            })
+            /* NT1011F（主人拍板）：初始宽度校准到 DSH 原始侧栏宽（280px）。
+               share 换算的分母与 trellis 内部不一致（实测 0.25→378px），比例法不可靠；
+               等 #ntDotsRoot 挂载（200ms 轮询，最多 3s）后量实际视觉宽，按比例修权重。 */
+            let calTries = 0
+            const calTimer = setInterval(() => {
+              try {
+                const el2 = wrapRef.current?.querySelector<HTMLElement>('#ntDotsRoot')
+                if (!el2) { if (++calTries > 15) clearInterval(calTimer); return }
+                clearInterval(calTimer)
+                /* NT1011G（2026-10-14 主人拍板方案 a）：web 端落位修正——dots 面板不在根 split
+                   最左时重排 children+weights 到最左。桌面本来就落左（重排是空操作）；
+                   只处理 dots 是根 split 直接 child 的情况，嵌套更深不动（防误伤桌面布局）。 */
+                try {
+                  const docL = JSON.parse(JSON.stringify(ws.getDocument())) as any
+                  const dotsPanelId = (n: any): string | null => {
+                    if (!n || typeof n !== 'object') return null
+                    if (n.kind === 'panel') {
+                      return (n.views ?? []).some((v: any) => (typeof v === 'string' ? /^dots-/.test(v) : v?.type === 'dots')) ? String(n.id) : null
+                    }
+                    for (const c of n.children ?? []) { const hit = dotsPanelId(c); if (hit) return hit }
+                    return n.child ? dotsPanelId(n.child) : null
+                  }
+                  const pid = dotsPanelId(docL?.root)
+                  const rL = docL?.root
+                  if (pid && rL?.kind === 'split' && Array.isArray(rL.children) && rL.children.length > 1) {
+                    const i = rL.children.findIndex((c: any) => c && String(c.id) === pid)
+                    if (i > 0) {
+                      const ch = [...rL.children]
+                      /* trellis split 的 weights 与 children 等长（校准段 w[i] 同口径），换序必须同步换权 */
+                      const w = Array.isArray(rL.weights) && rL.weights.length === ch.length ? [...rL.weights] : null
+                      const [mv] = ch.splice(i, 1); ch.unshift(mv)
+                      if (w) { const [mw] = w.splice(i, 1); w.unshift(mw) }
+                      rL.children = ch
+                      if (w) rL.weights = w
+                      ws.setDocument(docL as never)
+                      dotsGoodDocRef.current = null /* 重排后作废旧样本，防弹回右侧布局 */
+                    }
+                  }
+                } catch { /* 重排失败：保持现状 */ }
+                const cur = el2.getBoundingClientRect().width
+                if (cur < 60 || Math.abs(cur - 280) < 14) return /* 已达标 */
+                const doc2 = JSON.parse(JSON.stringify(ws.getDocument())) as any
+                const hasDots = (n: any): boolean => {
+                  if (!n || typeof n !== 'object') return false
+                  if (n.kind === 'panel') return (n.views ?? []).some((v: any) => (typeof v === 'string' ? /^dots-/.test(v) : v?.type === 'dots'))
+                  if (n.kind === 'split') return (n.children ?? []).some(hasDots)
+                  if (n.kind === 'stage') return n.child ? hasDots(n.child) : false
+                  return false
+                }
+                const findSplit = (n: any): { n: any; idx: number } | null => {
+                  if (!n || typeof n !== 'object') return null
+                  if (n.kind === 'split') {
+                    const idx = (n.children ?? []).findIndex(hasDots)
+                    if (idx >= 0 && n.axis === 'x') return { n, idx }
+                    for (const c of n.children ?? []) { const hit = findSplit(c); if (hit) return hit }
+                  } else if (n.kind === 'stage') { return n.child ? findSplit(n.child) : null }
+                  return null
+                }
+                const hit = findSplit(doc2?.root)
+                if (hit && Array.isArray(hit.n.weights)) {
+                  const f = Math.max(0.4, Math.min(2.5, 280 / cur))
+                  const w = hit.n.weights
+                  const i = hit.idx
+                  const ni = Math.max(0.08, (w[i] ?? 0.25) * f)
+                  const rest = Math.max(0.05, 1 - ni)
+                  const restSum = w.reduce((acc: number, v: number, j: number) => (j === i ? acc : acc + (v ?? 0)), 0) || 1
+                  hit.n.weights = w.map((v: number, j: number) => (j === i ? ni : ((v ?? 0) / restSum) * rest))
+                  ws.setDocument(doc2 as never)
+                  dotsGoodDocRef.current = null /* 校准后作废旧样本，防弹回 378 旧布局 */
+                }
+              } catch { /* 校准失败：保持 0.25 档 */ }
+              dotsDiag('cal') /* NT1011J */
+            }, 200)
+            dotsCalRef.current = calTimer /* NT1011H：登记句柄，OFF/卸载时清 */
+          } catch { dotsModeAbort() }
+        }, 100)
+        return true
+      }
+      if (dotsPollRef.current) { clearInterval(dotsPollRef.current); dotsPollRef.current = null }
+      /* NT1011H：OFF 必须停校准计时器——留着它会在还原后的布局上再写 setDocument，
+         把 dots 布局写回去（宽度漂移/关不干净的候选根源） */
+      if (dotsCalRef.current) { clearInterval(dotsCalRef.current); dotsCalRef.current = null }
+      const ws = wsRef.current
+      if (ws && dotsSnapRef.current) {
+        try { ws.setDocument(dotsSnapRef.current as never) } catch { /* 还原失败：布局保持现状 */ }
+      }
+      dotsSnapRef.current = null
+      dotsLastWRef.current = null
+      dotsDiag('off-restore') /* NT1011J */
+      return true
+    })
+    return () => {
+      /* NT1011F 复核茬1：ON 期间卸载（如切回原生对话面板）→ 先尽力还原 trellis
+         （快照还在就 setDocument），再 abort 翻回 OFF + 还原侧栏；否则模式卡 ON、
+         侧栏卡折叠、重挂载后快照丢失还原不了。 */
+      if (isDotsMode()) {
+        const ws = wsRef.current
+        if (ws && dotsSnapRef.current) {
+          try { ws.setDocument(dotsSnapRef.current as never) } catch { /* 尽力还原 */ }
+        }
+        dotsSnapRef.current = null
+        dotsModeAbort()
+      }
+      setDotsModeImpl(null)
+      if (dotsPollRef.current) { clearInterval(dotsPollRef.current); dotsPollRef.current = null }
+      if (dotsCalRef.current) { clearInterval(dotsCalRef.current); dotsCalRef.current = null }
+    }
+  }, [])
+
+  // NT1011F 真机修订（主人反馈「最小缩放没有」）：trellis 的 ViewRules.minSize 只管
+  // 「内容按 minSize 排版再缩小塞进小窗格」（scale<1，字跟着变小），divider 拖拽下限
+  // 是写死的 PANEL_MIN={w:80}（dist layoutMetrics），做不出硬下限——minSize 已拆。
+  // 改「软下限 + 松手弹回」：dots 窗格 <400px 且指针已松开 → setDocument 弹回最近一次
+  // ≥400px 的布局（dots 保持打开）。拖动中不弹（指针按住时不干预，避免与 trellis 拖拽打架）。
+  // 妥协：工作台初始就窄于 400px 时取不到合法样本，不弹（布局保留现状）。
+  const DOTS_MIN_W = 280 // NT1011F（主人拍板）：= DSH 原始对话列表宽度（实测 hHd-Xa_root 280px）
+  const dotsGoodDocRef = useRef<unknown>(null)
+  const dotsPointerDownRef = useRef(false)
+  const dotsFixTriedRef = useRef(false)
+  const dotsHadViewRef = useRef(false)
+  useEffect(() => {
+    const down = () => { dotsPointerDownRef.current = true }
+    const up = () => { dotsPointerDownRef.current = false }
+    window.addEventListener('pointerdown', down, true)
+    window.addEventListener('pointerup', up, true)
+    const tick = () => {
+      if (!isDotsMode()) { dotsHadViewRef.current = false; return }
+      const el = wrapRef.current?.querySelector<HTMLElement>('#ntDotsRoot')
+      const ws = wsRef.current
+      /* NT1011F：关 tab 自动还原——dots 模式 ON 时视图从 DOM 消失（手动点 x）＝
+         用户离开点图：翻回 OFF + 还原侧栏。只在「曾出现过视图」后才判缺席，
+         避免 ON 刚起步（窗格未挂）误判。 */
+      if (!el) {
+        if (dotsHadViewRef.current && !dotsPointerDownRef.current) {
+          dotsHadViewRef.current = false
+          dotsModeAbort()
+        }
+        return
+      }
+      dotsHadViewRef.current = true
+      if (!ws) return
+      /* NT1011F 真机二次修订：量「视觉宽」（rect，含 trellis 拖拽中的 scale transform）。
+         布局宽（offsetWidth）在 trellis 缩放塞内容时不变（实测 480 vs 显示 376），
+         会漏掉「视觉已缩到 400 以下、缩放卡死不回」的真实形态。 */
+      const w = el.getBoundingClientRect().width
+      /* NT1011J：宽度突变(>40px)自动取证 */
+      if (dotsLastWRef.current !== null && Math.abs(w - dotsLastWRef.current) > 40) dotsDiag('jump')
+      dotsLastWRef.current = w
+      /* NT1011M 修（2026-10-14 紧急 bug：双击开的会话 tab 闪现即消失）：采样/回弹线与
+         校准命中带（280±14）同口径——窗格校准后实测 278.9 恒 <280，旧硬 280 回弹线
+         导致每个 tick 都 setDocument(旧好样本)，把刚开的会话视图一并回滚掉。
+         改为 w≥266 采样为好样本、w<266 才回弹。 */
+      if (w >= DOTS_MIN_W - 14) {
+        if (el.dataset.ntGoodW !== String(Math.round(w))) {
+          el.dataset.ntGoodW = String(Math.round(w))
+          try { dotsGoodDocRef.current = JSON.parse(JSON.stringify(ws.getDocument())) } catch { /* 采样失败忽略 */ }
+        }
+      } else if (!dotsPointerDownRef.current) {
+        if (dotsGoodDocRef.current) {
+          try { ws.setDocument(dotsGoodDocRef.current as never) } catch { /* 弹回失败忽略 */ }
+        } else if (!dotsFixTriedRef.current) {
+          /* NT1011F 真机三次修订：持久化布局可能把 dots 钉在 <400（无合法样本可弹）。
+             直接改布局文档权重：找到含 dots view 的 split，把 dots 侧顶到 ≥440px 当量。
+             只试一次（失败不循环，避免与 trellis 打架）。 */
+          dotsFixTriedRef.current = true
+          try {
+            const wbW = wrapRef.current?.offsetWidth || 0
+            if (wbW > 600) {
+              const doc = JSON.parse(JSON.stringify(ws.getDocument())) as any
+              const hasDots = (n: any): boolean => {
+                if (!n || typeof n !== 'object') return false
+                if (n.kind === 'panel') return (n.views ?? []).some((v: any) => (typeof v === 'string' ? /^dots-/.test(v) : v?.type === 'dots'))
+                if (n.kind === 'split') return (n.children ?? []).some(hasDots)
+                if (n.kind === 'stage') return n.child ? hasDots(n.child) : false
+                return false
+              }
+              const findSplit = (n: any): { n: any; idx: number } | null => {
+                if (!n || typeof n !== 'object') return null
+                if (n.kind === 'split') {
+                  const idx = (n.children ?? []).findIndex(hasDots)
+                  if (idx >= 0 && n.axis === 'x') return { n, idx }
+                  for (const c of n.children ?? []) { const hit = findSplit(c); if (hit) return hit }
+                } else if (n.kind === 'stage') { return n.child ? findSplit(n.child) : null }
+                return null
+              }
+              const hit = findSplit(doc?.root)
+              const target = Math.min(0.5, 300 / wbW)
+              if (hit && Array.isArray(hit.n.weights)) {
+                const w = hit.n.weights
+                const i = hit.idx
+                if ((w[i] ?? 0) < target) {
+                  const rest = Math.max(0.05, 1 - target)
+                  const restSum = w.reduce((acc: number, v: number, j: number) => (j === i ? acc : acc + (v ?? 0)), 0) || 1
+                  hit.n.weights = w.map((v: number, j: number) => (j === i ? target : ((v ?? 0) / restSum) * rest))
+                  ws.setDocument(doc as never)
+                }
+              }
+            }
+          } catch { /* 自愈失败：保持现状，下轮不再试 */ }
+        }
+      }
+      /* NT1011H（2026-10-14 主人需求）：dots 面板独占——混进来的非 dots 视图驱逐到
+         第一个无 dots 的面板（trellis 无面板级 accept 限制，行为上等价「拖不进」）。
+         指针按住时不干预（避免与 trellis 拖拽打架，松手下一 tick 驱逐）。 */
+      if (!dotsPointerDownRef.current && ws) {
+        try {
+          const docE = JSON.parse(JSON.stringify(ws.getDocument())) as any
+          let dotsPanel: any = null
+          let hostPanel: any = null
+          const isDotsV = (v: any): boolean => (typeof v === 'string' ? /^dots-/.test(v) : v?.type === 'dots')
+          const walk = (n: any): void => {
+            if (!n || typeof n !== 'object') return
+            if (n.kind === 'panel') {
+              const hasD = (n.views ?? []).some(isDotsV)
+              if (hasD && !dotsPanel) dotsPanel = n
+              else if (!hasD && !hostPanel) hostPanel = n
+              return
+            }
+            for (const c of n.children ?? []) walk(c)
+            if (n.child) walk(n.child)
+          }
+          walk(docE?.root)
+          if (dotsPanel && hostPanel && Array.isArray(dotsPanel.views) && dotsPanel.views.length > 1) {
+            const keep: unknown[] = []
+            const evict: unknown[] = []
+            for (const v of dotsPanel.views) (isDotsV(v) ? keep : evict).push(v)
+            if (evict.length) {
+              dotsPanel.views = keep
+              hostPanel.views = [...(hostPanel.views ?? []), ...evict]
+              ws.setDocument(docE as never)
+              dotsGoodDocRef.current = null /* 驱逐后作废旧样本 */
+            }
+          }
+        } catch { /* 驱逐失败：下轮再试 */ }
+      }
+    }
+    const t = setInterval(tick, 300)
+    return () => {
+      clearInterval(t)
+      window.removeEventListener('pointerdown', down, true)
+      window.removeEventListener('pointerup', up, true)
+    }
+  }, [])
 
   // 打开请求总线：图页（page:）/文件（file:）/会话 → ws.open 成 tab。
   // 会话分支（E47）：find-or-open。reuse:'params' 按 params 深比命中已有 tab（trellis
@@ -537,13 +909,19 @@ export function WorkbenchView(props: WorkbenchProps) {
       onDrop={onDrop}
     >
       <div className={s.wbMain}>
+        {/* NT1011F 真机三次修订：Workspace 挂载延迟到「tab 注册表安静 ≥800ms」。
+            否则 storage 恢复布局时外部插件 tab（dots）类型未声明 → 恢复出占位僵尸 tab
+            （标题在、内容空、关不掉，桌面实机实锤）。上限 2.5s 强制放行，不拖死启动。 */}
+        {wsReady ? (
         <Workspace
           ref={wsRef}
           theme={hostTheme}
           navigation="free"
           storageKey={TRELLIS_STORAGE_KEY}
           version={1}
-          tokens={hostTheme === 'dark' ? { ...TRELLIS_FONT_TOKENS, ...TRELLIS_DARK_TOKENS } : TRELLIS_FONT_TOKENS}
+          tokens={hostTheme === 'dark'
+            ? { ...TRELLIS_FONT_TOKENS, ...TRELLIS_DARK_TOKENS }
+            : { ...TRELLIS_FONT_TOKENS, ...TRELLIS_LIGHT_TOKENS }}
           className={s.ntws}
         >
           <ViewType
@@ -594,13 +972,21 @@ export function WorkbenchView(props: WorkbenchProps) {
               <ViewType
                 id="dots"
                 title={() => dotsTab.title || '点图'}
+                icon={DotsTabIcon}
                 render={() => <ExtTabPane tab={dotsTab} />}
+                /* NT1011G（2026-10-14 web 实测）：不声明 minSize 时 trellis 默认仍把内容
+                   按布局宽缩放进窄窗格（实测 280px 槽缩放 0.57）——canvas 引擎字号/按钮全被压小。
+                   scaling:false = 内容按窗格实际尺寸排版，画布自适应（resizeCv 读 offsetWidth）。 */
+                scaling={false}
               />
             )
             : null}
           <Stage empty={
             <div className={s.pempty}>
               把左侧会话拖到窗格边缘分栏 · 拖到窗格中心并入 · 双击 tab 条聚焦
+              <div style={{ marginTop: 6, color: 'var(--dsh-faint, #5b5854)' }}>
+                新建会话：用左栏原版「新对话」（NT1013C：工作台 tab 上的「＋」已移除）
+              </div>
               <div style={{ marginTop: 12 }}>
                 <button className={s.webGo} onClick={() => wsRef.current?.open('web', { params: { url: '' }, reuse: false })}>
                   打开浏览器
@@ -615,10 +1001,9 @@ export function WorkbenchView(props: WorkbenchProps) {
             </Panel>
           </Stage>
         </Workspace>
-        {/* E43v3：TabPlus 必须放 Workspace 外——Workspace 对 children 只认声明件
-            （ViewType/Stage/Panel…），未知元素在声明期就被丢弃不挂载（探针实证：
-            tabs 容器在场而 tabnew=0）。append 目标靠 querySelector 找，与 React 树位置无关 */}
-        <TabPlus containerRef={wrapRef} onClick={() => props.newSession?.()} />
+        ) : (
+          <div className={s.pempty}>工作台启动中…</div>
+        )}
       </div>
       {/* E30：常驻挂载 + class 切宽，宽度/透明度过渡替代条件挂载（动画不再僵硬） */}
       <div className={s.wbRight + (artOpen ? ' ' + s.wbRightOn : '')} data-nt="wrightrail" aria-hidden={!artOpen}>

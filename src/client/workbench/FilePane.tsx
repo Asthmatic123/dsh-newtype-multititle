@@ -34,8 +34,13 @@ async function resolveFileBase(): Promise<string | null> {
 }
 
 /** 走自绘文本的扩展名（其余：图片/html 交 iframe 原生渲染） */
-const TEXT_EXT = /\.(md|markdown|yml|yaml|json|txt|log|csv|tsv)$/i
+const TEXT_EXT = /\.(md|markdown|yml|yaml|json|txt|log|csv|tsv|xml)$/i
 const IS_MD = /\.(md|markdown)$/i
+/** NT1013B：pdf 交 iframe 原生查看器（host 半已放行 application/pdf） */
+const IS_PDF = /\.pdf$/i
+/** 内嵌预览覆盖不了的格式（office/压缩包/媒体等）：host 415，与其让 iframe
+ *  显示裸报错，不如提前给出明确空态（是否做「系统打开」待主人拍板）。 */
+const PREVIEWABLE_EXT = /\.(md|markdown|yml|yaml|json|txt|log|csv|tsv|xml|pdf|png|jpe?g|gif|webp|svg|html?)$/i
 
 /**
  * E41e：md → srcDoc HTML（marked 打包内置 + mermaid CDN 懒加载）。
@@ -112,7 +117,9 @@ export function FilePane({ path }: { path: string }) {
   return (
     <div className={s.webPane}>
       {path ? (
-        base ? (
+        !PREVIEWABLE_EXT.test(path) ? (
+          <div className={s.pempty}>该格式暂不支持内嵌预览（{path.slice(path.lastIndexOf('.') + 1) || '?'}）</div>
+        ) : base ? (
           isText ? (
             textErr ? (
               <div className={s.pempty}>读取失败：{textErr}</div>

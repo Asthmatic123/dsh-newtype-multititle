@@ -135,7 +135,8 @@ declare module '@deepseek-ai/cordis' {
     }
     /** 会话导航面（ui-workspace navigation.d.ts 实证签名） */
     uiWorkspace: {
-      openSession(target: string): void
+      /** NT1013B：target 也接 SubagentAddress（B10-b 子代理页签；宿主 resolveTarget 双形态实证） */
+      openSession(target: string | { parentSessionId: string; childSessionId: string; mode: string }): void
       openWorkspace(workspaceId: string, beforeOpen?: unknown): Promise<void>
       startSession(workspaceId?: string): void
       /* NT1011B 写操作（2026-10-11）：归档/置顶真写宿主。

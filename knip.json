@@ -1,0 +1,7 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": ["src/index.ts", "src/client/index.tsx", "test/**/*.test.ts", "tsdown.config.ts"],
+  "project": ["src/**/*.{ts,tsx}", "test/**/*.ts"],
+  "ignoreDependencies": ["@deepseek-ai/cordis"],
+  "tags": ["-draft"]
+}

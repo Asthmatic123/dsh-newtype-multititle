@@ -35,7 +35,7 @@ async function resolveBase(): Promise<string | null> {
   return null
 }
 
-export interface PageEntry {
+interface PageEntry {
   id: string
   name: string
   mtime: number
@@ -187,4 +187,3 @@ export function usePages(): Snap {
   )
 }
 
-export { subNoop }

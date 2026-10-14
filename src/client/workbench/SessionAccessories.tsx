@@ -27,7 +27,6 @@ function Ico(props: { d: string; size?: number }) {
 const D_FOLDER = 'M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z'
 const D_GEAR = 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z'
 const D_DOWN = 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3'
-const D_RBAR = 'M3 5h18v14H3zM15 5v14'
 const D_GLOBE = 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3.6 9h16.8M3.6 15h16.8M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18'
 
 /* ---------- 主题调色板（2026-10-09 浅色联动） ----------
@@ -102,7 +101,7 @@ async function fetchAppIds(): Promise<string[]> {
   return Array.isArray(payload.apps) ? payload.apps.filter((x): x is string => typeof x === 'string') : []
 }
 
-export function OpenInMenu(props: { getCwd?: () => string | null; vars?: Record<string, string> }) {
+function OpenInMenu(props: { getCwd?: () => string | null; vars?: Record<string, string> }) {
   const pop = usePop()
   const [ids, setIds] = useState<string[] | null>(null)
   const [failed, setFailed] = useState(false)
@@ -167,7 +166,7 @@ export function OpenInMenu(props: { getCwd?: () => string | null; vars?: Record<
 }
 
 /* ---------- ② 齿轮：下载日志（对话/轨迹切换已上移 B10 迷你页签，2026-10-12） ---------- */
-export function GearMenu(props: {
+function GearMenu(props: {
   /** 浅色联动：portal 菜单容器上的 --dsh-* 变量 */
   vars?: Record<string, string>
 }) {
@@ -192,24 +191,6 @@ export function GearMenu(props: {
         document.body,
       )}
     </div>
-  )
-}
-
-/* ---------- ③ 右栏开关（宿主 ctx.layout） ---------- */
-export function RightbarToggle(props: {
-  open: boolean
-  onOpen: () => void
-  onClose: () => void
-}) {
-  return (
-    <button
-      className={props.open ? 'nt-abtn on' : 'nt-abtn'}
-      title={props.open ? '收起右侧边栏' : '打开右侧边栏'}
-      aria-label={props.open ? '收起右侧边栏' : '打开右侧边栏'}
-      onClick={() => (props.open ? props.onClose() : props.onOpen())}
-    >
-      <Ico d={D_RBAR} />
-    </button>
   )
 }
 

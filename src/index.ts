@@ -31,6 +31,12 @@ const FILE_MIME: Record<string, string> = {
   '.webp': 'image/webp', '.svg': 'image/svg+xml', '.html': 'text/html; charset=utf-8',
   '.json': 'application/json; charset=utf-8', '.md': 'text/plain; charset=utf-8',
   '.yml': 'text/plain; charset=utf-8', '.yaml': 'text/plain; charset=utf-8',
+  // NT1013B（bug&spec 10-13）：md 之外附件打不开——pdf 走 iframe 原生查看器，
+  // 其余文本扩展 FilePane fetch 回来自绘（mime 仅声明用，fetch 不挑）。
+  '.pdf': 'application/pdf',
+  '.txt': 'text/plain; charset=utf-8', '.log': 'text/plain; charset=utf-8',
+  '.csv': 'text/plain; charset=utf-8', '.tsv': 'text/plain; charset=utf-8',
+  '.markdown': 'text/plain; charset=utf-8', '.xml': 'text/plain; charset=utf-8',
 }
 
 interface PageEntry {
