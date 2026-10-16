@@ -15,16 +15,24 @@ import type { Context } from '@deepseek-ai/cordis'
 
 export const name = '@dsh-external/dsh-newtype-multititle'
 
-/** v1 常量口径；要配置面等有第二个消费场景再说（简单优先）。 */
+/**
+ * 白名单根跟随 DSH 自己的 workspace 模型——零配置、全平台通用：
+ *  - 点文件窗格：白名单 = workspace registry 的全部路径（会话按 canonical cwd
+ *    挂到 workspace，对话里正常打开的文件必然落在某个 workspace 根之下）；
+ *  - 图页池：每个 workspace 贡献 <workspace>/data/pages 与
+ *    <workspace>/data/skillpages（原两处硬编码根正是这个口径）。
+ * registry 惰性读 + 全程防御（与 client 半可选服务同款套路）：特殊组合缺它
+ * 也只是降级为空列表，绝不卡 host 半的挂载。3s 全量重扫自愈启动后才建的
+ * workspace——与「池目录迟到」沿用同一套自愈机制。
+ * 可选环境变量兜底（特殊场景才需要）：
+ *  - DSH_NEWTYPE_PAGE_ROOTS：';' 分隔的图页目录列表；整体替换默认池
+ *    （用 ';' 是因为 Windows 盘符含 ':'）
+ *  - DSH_NEWTYPE_FILE_ROOT：额外只读根，在 workspace 根之外追加
+ */
 /** 端口候选：web 开发实例与桌面版可能并存，占用则顺延（client 端做同序探测）。 */
 const PAGE_PORTS = [7917, 7918, 7919]
-const PAGE_ROOTS = [
-  'D:/000_AI_Workspace/01_Projects/Project-DSH-NewType/data/pages',
-  'D:/000_AI_Workspace/01_Projects/Project-HB_Tao_mix/data/skillpages',
-]
 const MAX_PAGES = 200
 /** E31 spike：工作台内点文件 → 工作台窗格渲染。只读白名单根 + 2MB 上限。 */
-const FILE_ROOT = 'D:/000_AI_Workspace'
 const MAX_FILE_BYTES = 2 * 1024 * 1024
 const FILE_MIME: Record<string, string> = {
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif',
@@ -46,17 +54,78 @@ interface PageEntry {
   bytes: number
 }
 
+/** workspace registry 的 canonical 路径；防御式读取：服务缺席 => 空列表。 */
+function workspacePaths(ctx: Context): readonly string[] {
+  try {
+    // registry 用 reflect.get 读：不占 inject 依赖，服务迟到/缺席都只是空列表；
+    // 旧版 cordis 回落裸属性读。
+    const reflect = (ctx as Context & { reflect?: { get?: (name: string) => unknown } }).reflect
+    const reg = reflect?.get?.('workspaceRegistry')
+      ?? (ctx as Context & { workspaceRegistry?: unknown }).workspaceRegistry
+    const items = (reg as { list?: () => readonly unknown[] } | undefined)?.list?.() ?? []
+    const out: string[] = []
+    for (const w of items) {
+      const p = (w as { path?: unknown }).path
+      if (typeof p === 'string' && p !== '') out.push(p)
+    }
+    return out
+  } catch { return [] }
+}
+
+/** 图页池根：每 workspace 的 data/pages + data/skillpages；环境变量则整体替换。 */
+function pageRoots(ctx: Context): readonly string[] {
+  const raw = process.env.DSH_NEWTYPE_PAGE_ROOTS
+  if (raw !== undefined) return raw.split(';').map((p) => p.trim()).filter(Boolean)
+  const out: string[] = []
+  for (const ws of workspacePaths(ctx)) out.push(join(ws, 'data/pages'), join(ws, 'data/skillpages'))
+  return out
+}
+
+/** 点文件白名单根：全部 workspace 路径 + 可选环境变量根。 */
+function fileRoots(ctx: Context): readonly string[] {
+  const roots = [...workspacePaths(ctx)]
+  const extra = process.env.DSH_NEWTYPE_FILE_ROOT
+  if (extra !== undefined && extra.trim() !== '') roots.push(extra.replace(/[\\/]+$/, ''))
+  return roots
+}
+
+/** 大小写不敏感的「abs 在某个根之下」判定（反斜杠归一，兼容 Windows）。 */
+function insideRoots(abs: string, roots: readonly string[]): boolean {
+  const norm = abs.replace(/\\/g, '/').toLowerCase()
+  return roots.some((r) => norm.startsWith(r.replace(/\\/g, '/').replace(/[\\/]+$/, '').toLowerCase() + '/'))
+}
+
 export function apply(ctx: Context): void {
   ctx.logger('dsh-newtype-multititle').info('host half mounted')
 
   ctx.effect(() => {
     const entries = new Map<string, PageEntry>()
-    const watchers: FSWatcher[] = []
+    const watchers = new Map<string, FSWatcher>()
     let dirty = true
+
+    // watcher 跟随活的根集合：新根（新建 workspace / 环境变量池）下轮重扫补挂；
+    // 消失的根就地关闭，不留孤儿 watcher。
+    const syncWatchers = (roots: readonly string[]): void => {
+      for (const root of roots) {
+        if (watchers.has(root)) continue
+        try {
+          const w = watch(root, () => { dirty = true })
+          w.on('error', () => { /* 目录消失：该源停摆，不影响其他源 */ })
+          watchers.set(root, w)
+        } catch { /* 同上 */ }
+      }
+      for (const [root, w] of watchers) {
+        if (!roots.includes(root)) {
+          watchers.delete(root)
+          try { w.close() } catch { /* 已消亡，忽略 */ }
+        }
+      }
+    }
 
     const rescan = async (): Promise<void> => {
       const next = new Map<string, PageEntry>()
-      for (const root of PAGE_ROOTS) {
+      const roots = pageRoots(ctx)
+      for (const root of roots) {
         let names: string[] = []
         try { names = await readdir(root) } catch { continue } // 目录不存在 = 该源静默缺席（迟到的目录下轮自愈）
         for (const name of names) {
@@ -72,17 +141,11 @@ export function apply(ctx: Context): void {
       }
       entries.clear()
       for (const [k, v] of next) entries.set(k, v)
+      syncWatchers(roots)
       dirty = false
     }
     void rescan()
 
-    for (const root of PAGE_ROOTS) {
-      try {
-        const w = watch(root, () => { dirty = true })
-        w.on('error', () => { /* 目录消失：该源停摆，不影响其他源 */ })
-        watchers.push(w)
-      } catch { /* 同上 */ }
-    }
     // 无条件重扫兜底（fs.watch 在 Windows 偶发丢事件；目录迟到建不出来 watch 也得能自愈）
     const timer = setInterval(() => { if (dirty) void rescan() }, 1000)
     const fullRescan = setInterval(() => { void rescan() }, 3000)
@@ -119,7 +182,7 @@ export function apply(ctx: Context): void {
       if (page) {
         const ent = entries.get(page[1])
         if (!ent) { send(res, 404, 'page not found'); return }
-        for (const root of PAGE_ROOTS) {
+        for (const root of pageRoots(ctx)) {
           try {
             const abs = join(root, ent.name + '.html')
             const st = await stat(abs)
@@ -139,8 +202,8 @@ export function apply(ctx: Context): void {
         if (!raw) { send(res, 400, 'path required'); return } // FilePane 探活判据（E31）
         let abs = ''
         try { abs = join(raw) } catch { send(res, 400, 'bad path'); return }
-        const norm = abs.replace(/\\/g, '/').toLowerCase()
-        if (!norm.startsWith(FILE_ROOT.toLowerCase() + '/')) { send(res, 403, 'outside workspace root'); return }
+        // 白名单 = 活的 workspace 根（+ 可选环境变量根）；大小写不敏感前缀判定。
+        if (!insideRoots(abs, fileRoots(ctx))) { send(res, 403, 'outside workspace root'); return }
         const ext = abs.slice(abs.lastIndexOf('.')).toLowerCase()
         const mime = FILE_MIME[ext]
         if (!mime) { send(res, 415, 'extension not allowed'); return }
@@ -170,7 +233,8 @@ export function apply(ctx: Context): void {
 
     return () => {
       clearInterval(timer)
-      for (const w of watchers) w.close()
+      clearInterval(fullRescan)
+      for (const w of watchers.values()) w.close()
       server.close()
     }
   }, 'dsh-newtype-multititle: 图页 watcher + 只读页面服务')
