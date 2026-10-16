@@ -7,6 +7,7 @@
 import s from '../newtype.module.css'
 import { openTabBus } from '../bus.ts'
 import { attributedTo, isFresh, markSeen, usePages, PAGE_INBOX } from '../pages.ts'
+import { nt, useT } from '../i18n.ts'
 
 export interface ArtifactsPanelProps {
   /** session scope 标准道具（pane.tab 形态用）；global 形态不需要 */
@@ -19,7 +20,7 @@ function Row({ id, name, fresh }: { id: string; name: string; fresh: boolean }) 
     <div
       data-nt="artrow"
       className={s.row}
-      title={name + '\n点击进工作台窗格'}
+      title={name + nt('art.openHint')}
       onClick={() => { markSeen([id]); openTabBus.emit('page:' + id) }}
     >
       <span className={s.ico + (fresh ? ' ' + s.icoFresh : '')}>
@@ -32,6 +33,7 @@ function Row({ id, name, fresh }: { id: string; name: string; fresh: boolean }) 
 
 export function ArtifactsPanel(props: ArtifactsPanelProps) {
   const pages = usePages()
+  const t = useT()
   const global = props.mode === 'global'
   const sid = props.sessionId ?? null
 
@@ -43,12 +45,12 @@ export function ArtifactsPanel(props: ArtifactsPanelProps) {
     return (
       <div data-nt="artpanel" className={s.panel}>
         <div className={s.hd}>
-          <span>产出物</span>
+          <span>{t('artifacts.title')}</span>
           <span className={s.count}>{mine.length}</span>
         </div>
         <div className={s.list}>
           {mine.map((p) => <Row key={p.id} id={p.id} name={p.name} fresh={isFresh(p.id)} />)}
-          {!mine.length && <div className={s.empty}>暂无产出页</div>}
+          {!mine.length && <div className={s.empty}>{t('art.emptyMine')}</div>}
         </div>
       </div>
     )
@@ -57,20 +59,20 @@ export function ArtifactsPanel(props: ArtifactsPanelProps) {
   return (
     <div data-nt="artpanel" data-nt-mode="global" className={s.panel}>
       <div className={s.hd}>
-        <span>新到</span>
+        <span>{t('art.fresh')}</span>
         <span className={s.count} data-nt="artfresh">{fresh.length}</span>
       </div>
       <div className={s.list} style={{ flex: 'none', maxHeight: '40%' }}>
         {fresh.map((p) => <Row key={p.id} id={p.id} name={p.name} fresh />)}
-        {!fresh.length && <div className={s.empty}>无新到页</div>}
+        {!fresh.length && <div className={s.empty}>{t('art.noFresh')}</div>}
       </div>
       <div className={s.hd}>
-        <span>收件箱</span>
+        <span>{t('art.inbox')}</span>
         <span className={s.count}>{inbox.length}</span>
       </div>
       <div className={s.list}>
         {inbox.map((p) => <Row key={p.id} id={p.id} name={p.name} fresh={false} />)}
-        {!inbox.length && <div className={s.empty}>收件箱空</div>}
+        {!inbox.length && <div className={s.empty}>{t('art.inboxEmpty')}</div>}
       </div>
     </div>
   )

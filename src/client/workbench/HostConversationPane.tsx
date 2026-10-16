@@ -23,6 +23,7 @@
 import { memo, useEffect, useRef, useState } from 'react'
 import s from '../newtype.module.css'
 import { SessionPane } from './SessionPane.tsx'
+import { nt, useT } from '../i18n.ts'
 
 export interface HostConversationPaneProps {
   sessionId: string
@@ -69,6 +70,7 @@ type RetainState =
 const loadingFor = (id: string): RetainState => ({ phase: 'loading', for: id })
 
 export const HostConversationPane = memo(function HostConversationPane(props: HostConversationPaneProps) {  const { sessionId, retainSession, SessionProvider, renderFactorySlot, viewName, blank } = props
+  useT()
   /** E35：捕获层拦对话内链接点击。Ctrl/Cmd 点按放行（尊重「外部打开」习惯）；
    *  非 http(s)（mailto:、锚点、相对路径）不拦。
    *  E41：同层拦文件类点击（交付物卡 / md 文件提及 / @file 引用 chip），
@@ -191,7 +193,7 @@ export const HostConversationPane = memo(function HostConversationPane(props: Ho
           },
           (e) => {
             // 自己造成的 release（切 tab / 卸载）不算错误，静默留在 loading
-            const msg = String(e?.message ?? e ?? '打开失败')
+            const msg = String(e?.message ?? e ?? nt('pane.openFailed'))
             if (!alive || msg.includes('is released')) return
             // 非释放类失败（典型：启动期服务未就绪）→ 先释放，退避重试
             try { held.release() } catch { /* 重复 release 防御 */ }
@@ -217,13 +219,13 @@ export const HostConversationPane = memo(function HostConversationPane(props: Ho
   if (!SessionProvider || !renderFactorySlot) return <Fallback fallback={props.fallback} />
   // 状态还属于旧会话 = effect 还没跑完，这一帧绝不碰 factory
   const settled: RetainState = state.for === sessionId ? state : loadingFor(sessionId)
-  if (settled.phase === 'loading') return <div className={s.pempty}>加载会话…</div>
+  if (settled.phase === 'loading') return <div className={s.pempty}>{nt('pane.loadingSession')}</div>
   if (settled.phase === 'absent') return <Fallback fallback={props.fallback} />
   if (settled.phase === 'error') return <div className={s.perr}>{settled.message}</div>
 
   // 框架面缺席（未声明 children / 宿主版本漂移）→ 直接降级，不空窗
   if (!SessionProvider || !renderFactorySlot) return <Fallback fallback={props.fallback} />
-  if (state.phase === 'loading') return <div className={s.pempty}>加载会话…</div>
+  if (state.phase === 'loading') return <div className={s.pempty}>{nt('pane.loadingSession')}</div>
   if (state.phase === 'absent') return <Fallback fallback={props.fallback} />
   if (state.phase === 'error') return <div className={s.perr}>{state.message}</div>
 
@@ -276,5 +278,5 @@ function SessionHostView(props: { renderSlot?: (key: string, owner?: object) => 
 
 function Fallback(props: { fallback?: unknown }) {
   const node = props.fallback
-  return <>{node ?? <div className={s.pempty}>该窗格无法渲染原生对话框</div>}</>
+  return <>{node ?? <div className={s.pempty}>{nt('pane.cannotRender')}</div>}</>
 }

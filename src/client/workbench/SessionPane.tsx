@@ -7,6 +7,7 @@
  */
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import s from '../newtype.module.css'
+import { nt, useT } from '../i18n.ts'
 
 export interface SessionPaneProps {
   sessionId: string
@@ -77,6 +78,7 @@ export function SessionPane(props: SessionPaneProps) {
   const { sessionId, retainSession } = props
   const [src, setSrc] = useState<NtSnap<NtEventWindow> | null>(null)
   const [err, setErr] = useState<string | null>(null)
+  useT()
 
   useEffect(() => {
     let ref: NtSessionRef | null = null
@@ -86,12 +88,12 @@ export function SessionPane(props: SessionPaneProps) {
     try {
       ref = retainSession(sessionId)
       if (!ref) {
-        setErr('会话服务不可用')
+        setErr(nt('pane.serviceUnavailable'))
         return
       }
       ref.ready.then(
         (binding) => { if (alive) setSrc(binding?.eventSource ?? null) },
-        (e) => { if (alive) setErr(String(e?.message ?? e ?? '打开失败')) },
+        (e) => { if (alive) setErr(String(e?.message ?? e ?? nt('pane.openFailed'))) },
       )
     } catch (e) {
       setErr(String(e))
@@ -135,12 +137,12 @@ export function SessionPane(props: SessionPaneProps) {
           <div key={r.key} data-nt="massistant" className={s.massistant}>
             {r.text}
             {r.live && <span className={s.caret} />}
-            {r.interrupted && <span className={s.mflag}>（已中断）</span>}
+            {r.interrupted && <span className={s.mflag}>{nt('pane.interrupted')}</span>}
           </div>
         ),
       )}
-      {!rows.length && <div className={s.pempty}>（还没有可显示的事件）</div>}
-      {win?.hasMore && <div className={s.mmore}>更早的历史未加载</div>}
+      {!rows.length && <div className={s.pempty}>{nt('pane.noEvents')}</div>}
+      {win?.hasMore && <div className={s.mmore}>{nt('pane.hasMore')}</div>}
     </div>
   )
 }

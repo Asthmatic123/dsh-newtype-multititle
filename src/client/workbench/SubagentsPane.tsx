@@ -17,6 +17,8 @@
  */
 import { useCallback, useMemo, useRef, useSyncExternalStore } from 'react'
 import s from '../newtype.module.css'
+import { nt, useT } from '../i18n.ts'
+import type { NewTypeKey } from '../i18n.ts'
 
 export type NtSessionMode = 'chat' | 'subs' | 'jobs' | 'trace'
 
@@ -81,12 +83,12 @@ function useJobsRows(jobs: unknown, sid: string): readonly JobView[] {
   return useSyncExternalStore(subscribe, getSnap, getSnap) ?? []
 }
 
-const JOB_STATE_ZH: Record<string, string> = {
-  running: '运行中',
-  stopping: '停止中',
-  completed: '已完成',
-  killed: '已停止',
-  failed: '失败',
+const JOB_STATE_KEY: Record<string, NewTypeKey> = {
+  running: 'job.running',
+  stopping: 'job.stopping',
+  completed: 'job.completed',
+  killed: 'job.stopped',
+  failed: 'job.failed',
 }
 
 type ListSrc = {
@@ -132,6 +134,7 @@ export function SessionSubTabs(props: {
 }) {
   const entries = useCatalog(props.listSrc, props.sid)
   const jobsRows = useJobsRows(props.jobs, props.sid)
+  const t = useT()
   const tab = (id: NtSessionMode, label: string) => (
     <button
       key={id}
@@ -144,10 +147,10 @@ export function SessionSubTabs(props: {
   )
   return (
     <div className={s.minitabs} role="tablist">
-      {tab('chat', '对话')}
-      {entries.length > 0 && tab('subs', `子代理 ${entries.length}`)}
-      {jobsRows.length > 0 && tab('jobs', `后台 ${jobsRows.length}`)}
-      {tab('trace', '轨迹')}
+      {tab('chat', t('sub.tabChat'))}
+      {entries.length > 0 && tab('subs', t('sub.tabSubs', { n: entries.length }))}
+      {jobsRows.length > 0 && tab('jobs', t('sub.tabJobs', { n: jobsRows.length }))}
+      {tab('trace', t('sub.tabTrace'))}
     </div>
   )
 }
@@ -155,8 +158,9 @@ export function SessionSubTabs(props: {
 /** 后台任务面板：任务列表（展开终端输出需 follow 流，本版不做，只列状态）。 */
 export function JobsPane(props: { jobs: unknown; sid: string }) {
   const rows = useJobsRows(props.jobs, props.sid)
+  const t = useT()
   if (rows.length === 0) {
-    return <div className={s.pempty}>该会话没有后台任务</div>
+    return <div className={s.pempty}>{t('sub.noJobs')}</div>
   }
   return (
     <div className={s.subsPane}>
@@ -165,8 +169,8 @@ export function JobsPane(props: { jobs: unknown; sid: string }) {
         return (
           <div key={j.id ?? i} className={s.subsRow}>
             <span className={running ? `${s.subsDot} ${s.subsDotRun}` : s.subsDot} />
-            <span className={s.subsTitle}>{j.label ?? j.id ?? '(未命名任务)'}</span>
-            <span className={s.subsState}>{JOB_STATE_ZH[j.status ?? ''] ?? (j.status ?? '未知')}</span>
+            <span className={s.subsTitle}>{j.label ?? j.id ?? nt('sub.untitled')}</span>
+            <span className={s.subsState}>{(() => { const k = JOB_STATE_KEY[j.status ?? '']; return k ? t(k) : (j.status ?? nt('sub.unknown')) })()}</span>
           </div>
         )
       })}
@@ -201,8 +205,9 @@ export function SubagentsPane(props: {
     () => props.listSrc?.getSnapshot() ?? null,
     () => props.listSrc?.getSnapshot() ?? null,
   )
+  const t = useT()
   if (entries.length === 0) {
-    return <div className={s.pempty}>该会话没有子代理记录</div>
+    return <div className={s.pempty}>{t('sub.noSubs')}</div>
   }
   return (
     <div className={s.subsPane}>
@@ -215,12 +220,12 @@ export function SubagentsPane(props: {
             key={e.id}
             type="button"
             className={s.subsRow}
-            title={`打开子代理对话：${title}`}
+            title={t('sub.openAria', { title })}
             onClick={() => props.onOpen({ parentSessionId: props.sid, childSessionId: e.id, mode: e.mode ?? 'unknown' })}
           >
             <span className={running ? `${s.subsDot} ${s.subsDotRun}` : s.subsDot} />
             <span className={s.subsTitle}>{title}</span>
-            <span className={s.subsState}>{running ? '运行中' : (e.mode === 'continuable' ? '可续' : '已结束')}</span>
+            <span className={s.subsState}>{running ? t('job.running') : (e.mode === 'continuable' ? t('sub.resumable') : t('sub.ended'))}</span>
           </button>
         )
       })}

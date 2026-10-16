@@ -30,6 +30,7 @@ import { artifactPanelBus, artRail, openTabBus, setPendingSession } from './bus.
 import { subscribeTabs, tabHost, installTabHost } from './tabregistry.ts'
 import { isDotsMode, setDotsModeSidebar, subscribeDotsMode, toggleDotsMode } from './dotsmode.ts'
 import { retainedByMainView } from './pages.ts'
+import { nt, registerI18n, useT } from './i18n.ts'
 
 /** main 槽的 key，必须与 sidebar.panellist 条目 id 一一对应（PointRow → selectPanel）。 */
 const MAIN_WORKBENCH = 'newtype'
@@ -89,15 +90,16 @@ function ntToggleWorkbench(): void {
  * 收起侧栏时只显示图标（props.wide 为假）。
  */
 function WbToggle(props: { wide?: boolean }) {
+  const t = useT()
   const on = useSyncExternalStore(subscribeFreeMode, () => ntFreeMode, () => ntFreeMode)
-  const label = on ? '原版' : '自由栏位'
+  const label = on ? t('toggle.native') : t('toggle.workbench')
   return (
     <button
       type="button"
       className={s.footToggle + (on ? ' ' + s.footToggleOn : '')}
       aria-label={label}
       aria-pressed={on}
-      title={on ? `切回宿主原生对话（原版） · build ${NT_BUILD}` : `切到自由栏位工作台 · build ${NT_BUILD}`}
+      title={on ? t('toggle.title.back', { build: NT_BUILD }) : t('toggle.title.to', { build: NT_BUILD })}
       onClick={() => ntToggleWorkbench()}
     >
       <svg
@@ -155,6 +157,7 @@ function DotsIcon(props: { size?: number }) {
  * 并排依据：宿主 .footerActions 是 display:flex 行（ui-sidebar footArea 样式）。
  */
 function DotsBtn(props: { wide?: boolean }) {
+  const t = useT()
   const hasDots = useSyncExternalStore(
     subscribeTabs,
     () => tabHost.hasTab('dots'),
@@ -166,9 +169,9 @@ function DotsBtn(props: { wide?: boolean }) {
     <button
       type="button"
       className={s.footToggle + (on ? ' ' + s.footToggleOn : '')}
-      aria-label="2D列表"
+      aria-label={t('dots.label')}
       aria-pressed={on}
-      title={on ? '退出 2D 列表模式（还原布局与侧栏）' : '2D 列表模式（折叠侧栏 + 靠左点图窗格）'}
+      title={on ? t('dots.title.exit') : t('dots.title.enter')}
       onClick={() => {
         try { ntSelectPanel?.(MAIN_WORKBENCH) } catch { /* 布局缺席：静默 */ }
         if (toggleDotsMode()) return
@@ -176,7 +179,7 @@ function DotsBtn(props: { wide?: boolean }) {
       }}
     >
       <DotsIcon />
-      {props.wide ? <span className={s.footToggleText}>2D列表</span> : null}
+      {props.wide ? <span className={s.footToggleText}>{t('dots.label')}</span> : null}
     </button>
   )
 }
@@ -213,7 +216,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 // 服务（web 冒烟捆绑里有、桌面捆绑没有），inject 声明了就让整个插件卡 pending 不挂载
 // ——「底部按钮全消失」即此。后台页签暂时牺牲：getJobs try/catch 惰性读，读不到返回
 // null（页签自动隐藏），插件其余功能不受影响。待找到桌面可达的取数路径再开。
-export const inject = ['slots', 'uiWorkspace', 'sessions', 'sidebarRight', 'sidebarRightTabs', 'layout']
+// locale 进 inject：i18n 字典经 dsh-client-locale 注册（缺它则文案回落 zh，见 i18n.ts）。
+export const inject = ['slots', 'uiWorkspace', 'sessions', 'sidebarRight', 'sidebarRightTabs', 'layout', 'locale']
 
 type NtListSnap = {
   ids?: readonly string[] | undefined
@@ -361,6 +365,9 @@ function sharedInject(ctx: Context) {
 }
 
 export function apply(ctx: Context): void {
+  // —— i18n：字典注册 + translate 绑定（先于任何 slots 注册，文案全程可用） ——
+  registerI18n(ctx)
+
   // —— tab 宿主扩展点（2026-10-13）：挂 window.__ntMultititle，2dlist 经它注册 huabu tab ——
   installTabHost()
 
@@ -463,12 +470,12 @@ export function apply(ctx: Context): void {
     id: ARTIFACT_ID,
     kind: 'newtype-artifacts',
     priority: 'extension',
-    title: () => '产出物',
+    title: () => nt('artifacts.title'),
     guide: [{
       id: 'artifacts',
       order: 100,
-      title: () => '产出物',
-      description: () => '当前会话的图页与产出',
+      title: () => nt('artifacts.title'),
+      description: () => nt('artifacts.guideDesc'),
     }],
   }), 'dsh-newtype-multititle: 右栏产出物 tab 类型')
 
