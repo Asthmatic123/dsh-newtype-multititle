@@ -32,6 +32,28 @@ cd dsh-newtype-multititle && npm install && npm run build
 dsh plugin --profile desktop add .
 ```
 
+## 工作区根（跨平台，零配置）
+
+Host 半的两个只读文件服务不再硬编码作者本机的 Windows 目录，改为跟随 DSH 自己的 workspace 模型——任意操作系统零配置可用：
+
+- **点文件窗格**（`/newtype/file`）：白名单 = 宿主 workspace registry 中每个 workspace 的 canonical 目录路径。会话按其 cwd 挂到 workspace，对话里正常打开的文件必然落在某个 workspace 根之下；端点按请求活读 registry，运行中新建的 workspace 即刻生效。
+- **图页池**（`/newtype/pages`）：每个 workspace 按约定贡献 `<workspace>/data/pages` 与 `<workspace>/data/skillpages`（与原两处硬编码根同一口径）。目录不存在时静默缺席；既有的 3s 全量重扫 + watcher 自愈机制会捡起启动后才出现的池与 workspace（新建/删除 workspace 在下一轮重扫内生效）。
+
+registry 采用防御式惰性读取（与 client 半可选服务同款套路）：特殊组合缺它也只是降级为空列表，绝不阻塞 host 半。
+
+两个可选环境变量兜底：
+
+| 变量 | 用途 | 语义 |
+|---|---|---|
+| `DSH_NEWTYPE_PAGE_ROOTS` | 图页目录列表 | `;` 分隔；**整体替换**默认池（用 `;` 是因为 Windows 盘符含 `:`） |
+| `DSH_NEWTYPE_FILE_ROOT` | 点文件窗格额外只读根 | 单目录；在 workspace 根之外**追加** |
+
+```sh
+# 示例
+export DSH_NEWTYPE_PAGE_ROOTS="$HOME/Project-DSH-NewType/data/pages;/srv/skillpages"
+export DSH_NEWTYPE_FILE_ROOT="/srv/shared"
+```
+
 ## 版本兼容
 
 | dsh 版本 | 状态 |
