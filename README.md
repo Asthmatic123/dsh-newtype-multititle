@@ -41,6 +41,10 @@ dsh plugin --profile desktop add .
 
 兼容口径：`peerDependencies` 跨 minor 区间（`>=0.1.7-rc.2 <0.2.1`）。0.1.7 与 0.2.0 的六个接缝（`conversation.content` factory / SessionProvider 座位 / `sidebar.panellist` / `sidebar.right.pane.tab` / 拖拽协议 / 基础 CSS 变量）逐条比对一致。
 
+## 中英文支持
+
+插件 UI 文案跟随 DSH 的语言设置（设置 → General → Language），不单独设语言开关：选 English 即全英文，选中文保留中文。字典经公开的 `@deepseek-ai/dsh-client-locale` 运行时注册（zh/en 双语，键集编译期对齐），与生态内其他 UI 插件同一套口径。
+
 ## 构建
 
 ```sh

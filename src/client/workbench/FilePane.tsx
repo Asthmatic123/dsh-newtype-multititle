@@ -13,6 +13,7 @@
 import { useEffect, useState } from 'react'
 import { marked } from 'marked'
 import s from '../newtype.module.css'
+import { nt, useT } from '../i18n.ts'
 
 const PORTS = [7917, 7918, 7919]
 let cached: string | null | undefined
@@ -89,6 +90,7 @@ try {
 }
 
 export function FilePane({ path }: { path: string }) {
+  useT()
   const [base, setBase] = useState<string | null>(cached ?? null)
   const [text, setText] = useState<string | null>(null)
   const [textErr, setTextErr] = useState('')
@@ -118,11 +120,11 @@ export function FilePane({ path }: { path: string }) {
     <div className={s.webPane}>
       {path ? (
         !PREVIEWABLE_EXT.test(path) ? (
-          <div className={s.pempty}>该格式暂不支持内嵌预览（{path.slice(path.lastIndexOf('.') + 1) || '?'}）</div>
+          <div className={s.pempty}>{nt('file.noInline', { ext: path.slice(path.lastIndexOf('.') + 1) || '?' })}</div>
         ) : base ? (
           isText ? (
             textErr ? (
-              <div className={s.pempty}>读取失败：{textErr}</div>
+              <div className={s.pempty}>{nt('file.readFailed', { error: textErr })}</div>
             ) : text !== null ? (
               isMd ? (
                 <iframe
@@ -142,16 +144,16 @@ export function FilePane({ path }: { path: string }) {
                 >{text}</pre>
               )
             ) : (
-              <div className={s.pempty}>读取中…</div>
+              <div className={s.pempty}>{nt('file.reading')}</div>
             )
           ) : (
             <iframe className={s.pif} src={src} title={path} />
           )
         ) : (
-          <div className={s.pempty}>文件服务未就绪（host 半未挂载）</div>
+          <div className={s.pempty}>{nt('file.serviceNotReady')}</div>
         )
       ) : (
-        <div className={s.pempty}>缺少文件路径</div>
+        <div className={s.pempty}>{nt('file.noPath')}</div>
       )}
     </div>
   )

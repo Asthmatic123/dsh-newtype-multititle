@@ -16,6 +16,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import s from '../newtype.module.css'
+import { nt, useT } from '../i18n.ts'
 
 const normalize = (raw: string): string => {
   const t = raw.trim()
@@ -81,7 +82,7 @@ function WebviewEngine(props: {
       try {
         res = await bridge.acquire(WORKSPACE_KEY)
       } catch (e) {
-        if (!dead) onFailedRef.current(`租约获取失败：${String(e)}`)
+        if (!dead) onFailedRef.current(nt('web.leaseFailed', { error: String(e) }))
         return
       }
       if (dead) { void bridge.release(res.lease); return }
@@ -111,7 +112,7 @@ function WebviewEngine(props: {
       const onGone = () => {
         if (dead) return
         void drop()
-        onFailedRef.current('浏览进程已退出')
+        onFailedRef.current(nt('web.exited'))
       }
       el.addEventListener('render-process-gone', onGone)
       el.addEventListener('destroyed', onGone)
@@ -165,25 +166,26 @@ export function WebPane(props: {
     if (u) props.setParams({ url: u })
   }
   const openExternal = (u: string) => { window.open(u, '_blank', 'noopener') }
+  const t = useT()
   return (
     <div className={s.webPane}>
       <div className={s.webBar}>
         <input
           className={s.webUrl}
           value={draft}
-          placeholder="输入地址，如 localhost:3080 或 example.com"
+          placeholder={t('web.placeholder')}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') go(draft) }}
           spellCheck={false}
         />
-        <button className={s.webGo} onClick={() => go(draft)} title="转到">→</button>
+        <button className={s.webGo} onClick={() => go(draft)} title={t('web.go')}>→</button>
         {props.url && (
-          <button className={s.webGo} onClick={() => { if (props.url) openExternal(props.url) }} title="外部浏览器打开">
+          <button className={s.webGo} onClick={() => { if (props.url) openExternal(props.url) }} title={t('web.openExternal')}>
             ↗
           </button>
         )}
         {props.url && (
-          <button className={s.webGo} onClick={() => props.setParams({ url: '' })} title="关闭页面">
+          <button className={s.webGo} onClick={() => props.setParams({ url: '' })} title={t('web.closePage')}>
             ✕
           </button>
         )}
@@ -205,15 +207,15 @@ export function WebPane(props: {
         )
       ) : (
         <div className={s.pempty}>
-          输入地址打开页面
-          {!bridge && <div style={{ marginTop: 8, opacity: 0.6 }}>web 版走 iframe，部分站点拒绝嵌入时用 ↗ 外部打开</div>}
+          {t('web.enterAddress')}
+          {!bridge && <div style={{ marginTop: 8, opacity: 0.6 }}>{t('web.iframeHint')}</div>}
         </div>
       )}
       {engineFailed && (
         <div style={{ position: 'absolute', bottom: 0, left: 12, right: 12, fontSize: 11, opacity: 0.65, padding: '4px 0' }}>
-          webview 不可用已回落 iframe。
+          {t('web.webviewFellBack')}
           <button className={s.webGo} style={{ marginLeft: 6 }} onClick={() => { setEngineFailed(false); setEngineKey((k) => k + 1) }}>
-            重试 webview
+            {t('web.retryWebview')}
           </button>
         </div>
       )}

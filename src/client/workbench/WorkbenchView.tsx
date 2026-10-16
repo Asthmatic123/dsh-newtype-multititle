@@ -29,6 +29,7 @@ import { dotsModeAbort, isDotsMode, setDotsModeImpl } from '../dotsmode.ts'
 import { ArtifactsPanel } from './ArtifactsPanel.tsx'
 import { SessionAccessories, NT_VARS } from './SessionAccessories.tsx'
 import { SessionSubTabs, SubagentsPane, JobsPane, type NtSessionMode } from './SubagentsPane.tsx'
+import { nt, useT } from '../i18n.ts'
 
 export interface WorkbenchProps {
   /** 会话 scope 标准道具；用于空布局时预置当前会话 */
@@ -119,8 +120,8 @@ function ExtTabPane(props: { tab: NtExtTab }) {
   return <Comp />
 }
 
-/** 轨迹降级文案（模块级常量：renderSession 身份稳定的一部分） */
-const TRACE_FALLBACK = <div className={s.pempty}>轨迹视图不可用（宿主未提供 trajectory 视图）</div>
+/** 轨迹降级文案（调用点现取，跟语言设置走；HostConversationPane 只在缺席帧用它） */
+const TRACE_FALLBACK = () => <div className={s.pempty}>{nt('wb.traceUnavailable')}</div>
 
 /* ===== E47 拖拽落点：宿主左栏行（HTML5 DnD）→ trellis 布局 =====
  *
@@ -247,6 +248,7 @@ export function WorkbenchView(props: WorkbenchProps) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const [dropHot, setDropHot] = useState(false)
   const artOpen = useSyncExternalStore(artRail.sub, artRail.get)
+  useT() // 语言代际订阅：切语言时标题工厂/空态文案跟着重渲染
   // 浅色主题联动（2026-10-09 主人要求）：跟随宿主 color-scheme，css 变化即重读
   const [hostTheme, setHostTheme] = useState<'light' | 'dark'>(readHostTheme)
   useEffect(() => {
@@ -278,7 +280,7 @@ export function WorkbenchView(props: WorkbenchProps) {
     () => (id: string) => {
       const r = byId[id]
       // E43c：未发言的空会话统一叫「新对话」（宿主给新会话的标题是工作区名，观感怪）
-      if (r?.blank) return '新对话'
+      if (r?.blank) return nt('wb.newChat')
       return r?.displayTitle ?? r?.title ?? id.slice(0, 8)
     },
     [byId],
@@ -851,7 +853,7 @@ export function WorkbenchView(props: WorkbenchProps) {
     const raw = view.params?.mode
     const mode: NtSessionMode = raw === 'trace' ? 'trace' : raw === 'subs' ? 'subs' : raw === 'jobs' ? 'jobs' : 'chat'
     const retain = props.retainSession
-    if (!retain) return <div className={s.pempty}>会话服务未就绪</div>
+    if (!retain) return <div className={s.pempty}>{nt('wb.sessionNotReady')}</div>
     // E41：文件点击 → 文件窗格。相对路径（@file chip 的 title）按会话 cwd 拼绝对。
     const openInFilePane = (raw: string) => {
       let p = raw.replace(/^@/, '').replace(/^"|"$/g, '')
@@ -872,7 +874,7 @@ export function WorkbenchView(props: WorkbenchProps) {
         retainSession={retain}
         SessionProvider={props.SessionProvider}
         renderFactorySlot={props.renderFactorySlot}
-        fallback={TRACE_FALLBACK}
+        fallback={TRACE_FALLBACK()}
       />
     ) : mode === 'subs' ? (
       <SubagentsPane listSrc={listSrc} sid={sid} onOpen={(addr) => props.openSession?.(addr)} />
@@ -952,7 +954,7 @@ export function WorkbenchView(props: WorkbenchProps) {
             id="file"
             title={(v: { params?: { path?: string } }) => {
               const p = v.params?.path ?? ''
-              return p.slice(Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\')) + 1) || '文件'
+              return p.slice(Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\')) + 1) || nt('wb.tabFile')
             }}
             render={(v: any) => <FilePane path={v?.params?.path ?? ''} />}
           />
@@ -961,7 +963,7 @@ export function WorkbenchView(props: WorkbenchProps) {
             id="web"
             title={(v: { params?: { url?: string } }) => {
               const u = v.params?.url ?? ''
-              return u ? (u.replace(/^https?:\/\//, '').split('/')[0] || '浏览器') : '浏览器'
+              return u ? (u.replace(/^https?:\/\//, '').split('/')[0] || nt('wb.tabBrowser')) : nt('wb.tabBrowser')
             }}
             render={(v: any) => <WebPane url={v?.params?.url ?? ''} setParams={(patch) => v?.setParams?.(patch)} openWebTab={openInBrowser} />}
           />
@@ -971,7 +973,7 @@ export function WorkbenchView(props: WorkbenchProps) {
             ? (
               <ViewType
                 id="dots"
-                title={() => dotsTab.title || '点图'}
+                title={() => dotsTab.title || nt('wb.tabDots')}
                 icon={DotsTabIcon}
                 render={() => <ExtTabPane tab={dotsTab} />}
                 /* NT1011G（2026-10-14 web 实测）：不声明 minSize 时 trellis 默认仍把内容
@@ -983,13 +985,13 @@ export function WorkbenchView(props: WorkbenchProps) {
             : null}
           <Stage empty={
             <div className={s.pempty}>
-              把左侧会话拖到窗格边缘分栏 · 拖到窗格中心并入 · 双击 tab 条聚焦
+              {nt('wb.emptyHint')}
               <div style={{ marginTop: 6, color: 'var(--dsh-faint, #5b5854)' }}>
-                新建会话：用左栏原版「新对话」（NT1013C：工作台 tab 上的「＋」已移除）
+                {nt('wb.emptyNew')}
               </div>
               <div style={{ marginTop: 12 }}>
                 <button className={s.webGo} onClick={() => wsRef.current?.open('web', { params: { url: '' }, reuse: false })}>
-                  打开浏览器
+                  {nt('acc.openBrowser')}
                 </button>
               </div>
             </div>
@@ -1002,15 +1004,15 @@ export function WorkbenchView(props: WorkbenchProps) {
           </Stage>
         </Workspace>
         ) : (
-          <div className={s.pempty}>工作台启动中…</div>
+          <div className={s.pempty}>{nt('wb.starting')}</div>
         )}
       </div>
       {/* E30：常驻挂载 + class 切宽，宽度/透明度过渡替代条件挂载（动画不再僵硬） */}
       <div className={s.wbRight + (artOpen ? ' ' + s.wbRightOn : '')} data-nt="wrightrail" aria-hidden={!artOpen}>
         <div className={s.hd}>
-          <span>产出物</span>
+          <span>{nt('artifacts.title')}</span>
           <span className={s.hdRight}>
-            <button className={s.icbtn} data-nt="artrclose" title="收起右栏" onClick={() => artRail.set(false)}>
+            <button className={s.icbtn} data-nt="artrclose" title={nt('wb.collapseRight')} onClick={() => artRail.set(false)}>
               <svg viewBox="0 0 24 24" className={s.ic}><path d="M18 6 6 18M6 6l12 12" /></svg>
             </button>
           </span>

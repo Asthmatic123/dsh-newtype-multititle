@@ -13,6 +13,8 @@
  */
 import { useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { nt, useT } from '../i18n.ts'
+import type { NewTypeKey } from '../i18n.ts'
 
 /* ---------- 通用图标 ---------- */
 /* 尺寸对齐 DSH 原版侧栏图标：16×16 · strokeWidth 1（2026-10-09 主人要求，探针实测原版口径） */
@@ -76,22 +78,29 @@ function usePop() {
 /* ---------- ① Open In…（接宿主 dsh-host-open-in-app 真路由，2026-10-09） ----------
  * GET /open-in-app/apps → { apps: id[] }（宿主探测到的才在列表里，探测不到不显示）；
  * POST /open-in-app/open { app, path } → 用该应用打开目录（path = 当前窗格会话的 cwd）。
- * 应用 id 口径来自 dsh-client-ui-open-in-app 的 APP_LABEL_KEY；分类/中文名是我们自己的映射。
+ * 应用 id 口径来自 dsh-client-ui-open-in-app 的 APP_LABEL_KEY；cat 用规范 id（i18n 后
+ * 排序/分组不能押在文案上），显示名走 name（固定名）或 nameKey（本地化名）。
  */
-const APP_META: Record<string, { name: string; cat: string }> = {
-  vscode: { name: 'VS Code', cat: '编辑器 · IDE' },
-  vscodeinsiders: { name: 'VS Code Insiders', cat: '编辑器 · IDE' },
-  cursor: { name: 'Cursor', cat: '编辑器 · IDE' },
-  windsurf: { name: 'Windsurf', cat: '编辑器 · IDE' },
-  zed: { name: 'Zed', cat: '编辑器 · IDE' },
-  sublimetext: { name: 'Sublime Text', cat: '编辑器 · IDE' },
-  windowsterminal: { name: 'Windows Terminal', cat: '终端' },
-  warp: { name: 'Warp', cat: '终端' },
-  explorer: { name: '文件资源管理器', cat: '文件管理器' },
-  filemanager: { name: '文件管理器', cat: '文件管理器' },
-  finder: { name: 'Finder', cat: '文件管理器' },
+type NtAppCat = 'editor' | 'terminal' | 'files'
+const APP_META: Record<string, { name?: string; nameKey?: NewTypeKey; cat: NtAppCat }> = {
+  vscode: { name: 'VS Code', cat: 'editor' },
+  vscodeinsiders: { name: 'VS Code Insiders', cat: 'editor' },
+  cursor: { name: 'Cursor', cat: 'editor' },
+  windsurf: { name: 'Windsurf', cat: 'editor' },
+  zed: { name: 'Zed', cat: 'editor' },
+  sublimetext: { name: 'Sublime Text', cat: 'editor' },
+  windowsterminal: { name: 'Windows Terminal', cat: 'terminal' },
+  warp: { name: 'Warp', cat: 'terminal' },
+  explorer: { nameKey: 'acc.app.explorer', cat: 'files' },
+  filemanager: { nameKey: 'acc.app.fileManager', cat: 'files' },
+  finder: { name: 'Finder', cat: 'files' },
 }
-const CAT_ORDER = ['编辑器 · IDE', '终端', '文件管理器']
+const CAT_ORDER: readonly NtAppCat[] = ['editor', 'terminal', 'files']
+const CAT_LABEL: Record<NtAppCat, NewTypeKey> = {
+  editor: 'acc.cat.editor',
+  terminal: 'acc.cat.terminal',
+  files: 'acc.cat.files',
+}
 const OPENIN_CHOICE_KEY = 'dsh-newtype.openin.choice'
 
 async function fetchAppIds(): Promise<string[]> {
@@ -103,6 +112,7 @@ async function fetchAppIds(): Promise<string[]> {
 
 function OpenInMenu(props: { getCwd?: () => string | null; vars?: Record<string, string> }) {
   const pop = usePop()
+  const t = useT()
   const [ids, setIds] = useState<string[] | null>(null)
   const [failed, setFailed] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -112,6 +122,10 @@ function OpenInMenu(props: { getCwd?: () => string | null; vars?: Record<string,
   const load = () => {
     if (ids || failed) return
     fetchAppIds().then(setIds).catch(() => setFailed(true))
+  }
+  const appName = (id: string): string => {
+    const m = APP_META[id]
+    return m?.name ?? (m?.nameKey ? t(m.nameKey) : id)
   }
   const pick = async (id: string) => {
     try { localStorage.setItem(OPENIN_CHOICE_KEY, id) } catch { /* 配额满可弃 */ }
@@ -137,7 +151,7 @@ function OpenInMenu(props: { getCwd?: () => string | null; vars?: Record<string,
       <button
         ref={pop.btnRef}
         className={pop.open ? 'nt-abtn on' : 'nt-abtn'}
-        title={remembered && APP_META[remembered] ? `用「${APP_META[remembered].name}」打开会话目录` : 'Open In… · 打开会话目录'}
+        title={remembered && APP_META[remembered] ? t('acc.openWith', { name: appName(remembered) }) : t('acc.openIn')}
         onMouseEnter={() => { pop.show(); load() }}
         onClick={() => (pop.open ? pop.setOpen(false) : pop.show())}
       >
@@ -145,15 +159,15 @@ function OpenInMenu(props: { getCwd?: () => string | null; vars?: Record<string,
       </button>
       {pop.open && createPortal(
         <div className="nt-menu" style={{ position: 'fixed', top: pop.pos.y, left: Math.max(8, pop.pos.x - 190), ...(props.vars ?? {}) }} onMouseEnter={pop.cancel} onMouseLeave={pop.arm}>
-          <div className="nt-mi static">在以下应用中打开会话目录</div>
-          {failed && <div className="nt-mi static">宿主未提供打开服务</div>}
-          {!failed && ids !== null && groups.length === 0 && <div className="nt-mi static">未探测到可用应用</div>}
+          <div className="nt-mi static">{t('acc.openInHeader')}</div>
+          {failed && <div className="nt-mi static">{t('acc.noOpenService')}</div>}
+          {!failed && ids !== null && groups.length === 0 && <div className="nt-mi static">{t('acc.noApps')}</div>}
           {groups.map((g) => (
             <div key={g.cat} className="nt-cat">
-              <div className="nt-catname">{g.cat}</div>
+              <div className="nt-catname">{t(CAT_LABEL[g.cat])}</div>
               {g.apps.map((id) => (
                 <button key={id} className={'nt-mi' + (id === remembered ? ' sel' : '')} disabled={busy} onClick={() => { void pick(id) }}>
-                  <Ico d={D_FOLDER} />{APP_META[id]?.name ?? id}{id === remembered && <span className="nt-mk">记住</span>}
+                  <Ico d={D_FOLDER} />{appName(id)}{id === remembered && <span className="nt-mk">{t('acc.remembered')}</span>}
                 </button>
               ))}
             </div>
@@ -171,12 +185,13 @@ function GearMenu(props: {
   vars?: Record<string, string>
 }) {
   const pop = usePop()
+  const t = useT()
   return (
     <div className="nt-accwrap" onMouseLeave={pop.arm} onMouseEnter={pop.cancel}>
       <button
         ref={pop.btnRef}
         className={pop.open ? 'nt-abtn on' : 'nt-abtn'}
-        title="会话功能"
+        title={t('acc.category')}
         onMouseEnter={pop.show}
         onClick={() => (pop.open ? pop.setOpen(false) : pop.show())}
       >
@@ -184,8 +199,8 @@ function GearMenu(props: {
       </button>
       {pop.open && createPortal(
         <div className="nt-menu" style={{ position: 'fixed', top: pop.pos.y, left: Math.max(8, pop.pos.x - 190), ...(props.vars ?? {}) }} onMouseEnter={pop.cancel} onMouseLeave={pop.arm}>
-          <button className="nt-mi" title="接宿主 transcript 导出后启用">
-            <Ico d={D_DOWN} />下载对话日志
+          <button className="nt-mi" title={t('acc.transcriptSoon')}>
+            <Ico d={D_DOWN} />{t('acc.downloadLog')}
           </button>
         </div>,
         document.body,
@@ -196,8 +211,9 @@ function GearMenu(props: {
 
 /* ---------- ④ 浏览器按钮（E32：工作台内置浏览器 tab） ---------- */
 export function BrowserButton(props: { onOpen: () => void }) {
+  const t = useT()
   return (
-    <button className="nt-abtn" title="打开浏览器" aria-label="打开浏览器" onClick={props.onOpen}>
+    <button className="nt-abtn" title={t('acc.openBrowser')} aria-label={t('acc.openBrowser')} onClick={props.onOpen}>
       <Ico d={D_GLOBE} />
     </button>
   )
